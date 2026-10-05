@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Komikku Compare - Automated Test Runner</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f111a;
+      color: #e2e8f0;
+      padding: 30px;
+      line-height: 1.6;
+    }
+    h1 { color: #ff5370; }
+    .test-box {
+      background: #181b26;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .test-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 13px;
+    }
+    .test-item:last-child { border-bottom: none; }
+    .pass { color: #10b981; font-weight: bold; }
+    .fail { color: #ef4444; font-weight: bold; }
+    .summary {
+      font-size: 16px;
+      font-weight: 600;
+      padding: 12px;
+      border-radius: 6px;
+    }
+    .summary.all-passed {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .summary.some-failed {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+  </style>
+  <script src="../lib/pako.min.js"></script>
+  <script src="../lib/backup-parser.js"></script>
+  <script src="../lib/title-cleaner.js"></script>
+  <script src="../lib/matcher.js"></script>
+</head>
+<body>
+  <h1>Komikku Compare Test Suite</h1>
+  <div id="results"></div>
+
+  <script>
+    const resultsContainer = document.getElementById('results');
+    let totalTests = 0;
+    let passedTests = 0;
+
+    function renderGroup(title, tests) {
+      const box = document.createElement('div');
+      box.className = 'test-box';
+      const h3 = document.createElement('h3');
+      h3.textContent = title;
+      box.appendChild(h3);
+
+      for (const t of tests) {
+        totalTests++;
+        const item = document.createElement('div');
+        item.className = 'test-item';
+        
+        let passed = false;
+        try {
+          passed = t.fn();
+        } catch (e) {
+          console.error(e);
+          passed = false;
+        }
+
+        if (passed) passedTests++;
+
+        item.innerHTML = `
+          <span>${t.name}</span>
+          <span class="${passed ? 'pass' : 'fail'}">${passed ? '✓ PASS' : '✗ FAIL'}</span>
+        `;
+        box.appendChild(item);
+      }
+      resultsContainer.appendChild(box);
+    }
+
+    // 1. Title Cleaner Tests
+    const titleCleanerTests = [
+      {
+        name: 'Mangakakalot: "Read One Piece Chapter 1050 - Mangakakalot" -> "one piece"',
+        fn: () => TitleCleaner.cleanTabTitle("Read One Piece Chapter 1050 - Mangakakalot", "https://ww6.mangakakalot.tv/") === "one piece"
+      },
+      {
+        name: 'MangaDex (Chapter First): "Ch. 142 - Jujutsu Kaisen - MangaDex" -> "jujutsu kaisen"',
+        fn: () => TitleCleaner.cleanTabTitle("Ch. 142 - Jujutsu Kaisen - MangaDex", "https://mangadex.org/chapter/142") === "jujutsu kaisen"
+      },
+      {
+        name: 'Asura Scans: "Solo Leveling Chapter 179 - Asura Scans" -> "solo leveling"',
+        fn: () => TitleCleaner.cleanTabTitle("Solo Leveling Chapter 179 - Asura Scans", "https://asuracomics.com/") === "solo leveling"
+      },
+      {
+        name: 'ReadBerserk SEO: "Read Berserk Manga Online in High Quality - ReadBerserk" -> "berserk"',
+        fn: () => TitleCleaner.cleanTabTitle("Read Berserk Manga Online in High Quality - ReadBerserk", "https://readberserk.com/") === "berserk"
+      },
+      {
+        name: 'MangaPlus Pipe: "Chainsaw Man Chapter 120 | MangaPlus" -> "chainsaw man"',
+        fn: () => TitleCleaner.cleanTabTitle("Chainsaw Man Chapter 120 | MangaPlus", "https://mangaplus.shueisha.co.jp/") === "chainsaw man"
+      },
+      {
+        name: 'WEBTOON Episodes: "Tower of God - Episode 550 [Season 3 Ep. 133] - WEBTOON" -> "tower of god"',
+        fn: () => TitleCleaner.cleanTabTitle("Tower of God - Episode 550 [Season 3 Ep. 133] - WEBTOON", "https://www.webtoons.com/") === "tower of god"
+      },
+      {
+        name: 'Manga suffix strip: "Dandadan Manga - Read Dandadan Online For Free" -> "dandadan"',
+        fn: () => TitleCleaner.cleanTabTitle("Dandadan Manga - Read Dandadan Online For Free", "https://dandadan.online/") === "dandadan"
+      },
+      {
+        name: 'RAW prefix: "[RAW] Kingdom Chapter 750 - MangaReader" -> "kingdom"',
+        fn: () => TitleCleaner.cleanTabTitle("[RAW] Kingdom Chapter 750 - MangaReader", "https://mangareader.to/") === "kingdom"
+      },
+      {
+        name: 'Vol/Ch prefix: "Vol. 1 Ch. 1 - Oshi no Ko - MangaDex" -> "oshi no ko"',
+        fn: () => TitleCleaner.cleanTabTitle("Vol. 1 Ch. 1 - Oshi no Ko - MangaDex", "https://mangadex.org/") === "oshi no ko"
+      }
+    ];
+
+    renderGroup("1. Title Cleaner Specification Tests", titleCleanerTests);
+
+    // 2. Protobuf Encoder/Decoder Test
+    // Helper to create synthetic Tachiyomi Protobuf buffer:
+    function encodeVarint(val) {
+      const bytes = [];
+      let v = BigInt(val);
+      while (v >= 0x80n) {
+        bytes.push(Number((v & 0x7fn) | 0x80n));
+        v >>= 7n;
+      }
+      bytes.push(Number(v & 0x7fn));
+      return bytes;
+    }
+
+    function createSyntheticBackupBytes(mangaList) {
+      const textEncoder = new TextEncoder();
+      const backupBytes = [];
+
+      for (const item of mangaList) {
+        const mangaPayload = [];
+
+        // Field 2: url (wire type 2 -> tag 0x14)
+        const urlBytes = textEncoder.encode(item.url || '/manga/1');
+        mangaPayload.push(...encodeVarint(0x14));
+        mangaPayload.push(...encodeVarint(urlBytes.length));
+        mangaPayload.push(...urlBytes);
+
+        // Field 3: title (wire type 2 -> tag 0x1A)
+        const titleBytes = textEncoder.encode(item.title);
+        mangaPayload.push(...encodeVarint(0x1a));
+        mangaPayload.push(...encodeVarint(titleBytes.length));
+        mangaPayload.push(...titleBytes);
+
+        // Field 1: BackupManga inside Backup (tag 0x0A)
+        backupBytes.push(...encodeVarint(0x0a));
+        backupBytes.push(...encodeVarint(mangaPayload.length));
+        backupBytes.push(...mangaPayload);
+      }
+
+      return new Uint8Array(backupBytes);
+    }
+
+    async function runProtobufTests() {
+      const sampleTitles = [
+        { title: "One Piece", url: "/manga/one-piece" },
+        { title: "Solo Leveling", url: "/manga/solo-leveling" },
+        { title: "Jujutsu Kaisen", url: "/manga/jujutsu-kaisen" },
+        { title: "Frieren: Beyond Journey's End", url: "/manga/frieren" },
+        { title: "SPY×FAMILY", url: "/manga/spy-x-family" }
+      ];
+
+      const rawProtoBytes = createSyntheticBackupBytes(sampleTitles);
+      const gzippedBytes = pako.gzip(rawProtoBytes);
+
+      const parsed = await BackupParser.parseKomikkuBackup(gzippedBytes.buffer);
+
+      const protoTests = [
+        {
+          name: 'Decompressed and parsed all 5 manga titles from GZIP Protobuf',
+          fn: () => parsed.count === 5
+        },
+        {
+          name: 'Extracted "One Piece" into lowercased title set',
+          fn: () => parsed.titles.has("one piece")
+        },
+        {
+          name: 'Extracted "Solo Leveling" into lowercased title set',
+          fn: () => parsed.titles.has("solo leveling")
+        },
+        {
+          name: 'Extracted "SPY×FAMILY" into lowercased title set',
+          fn: () => parsed.titles.has("spy×family")
+        }
+      ];
+
+      renderGroup("2. GZIP & Protobuf Parser Tests", protoTests);
+
+      // 3. Comparison & Grouping Tests
+      const mockTabs = [
+        {
+          id: 101,
+          windowId: 1,
+          title: "Read One Piece Chapter 1050 - Mangakakalot",
+          url: "https://ww6.mangakakalot.tv/chapter/manga-aa951409/chapter-1050"
+        },
+        {
+          id: 102,
+          windowId: 1,
+          title: "Ch. 142 - Jujutsu Kaisen - MangaDex",
+          url: "https://mangadex.org/chapter/142"
+        },
+        {
+          id: 103,
+          windowId: 1,
+          title: "Spy x Family - Chapter 75.5 - Read Manga Online Free",
+          url: "https://mangapill.com/chapters/5176-10075500/spy-x-family-chapter-75-5"
+        },
+        {
+          id: 104,
+          windowId: 1,
+          title: "Chainsaw Man Chapter 120 | MangaPlus",
+          url: "https://mangaplus.shueisha.co.jp/viewer/1015600"
+        },
+        {
+          id: 105,
+          windowId: 1,
+          title: "Read Berserk Manga Online in High Quality - ReadBerserk",
+          url: "https://readberserk.com/chapter/berserk-chapter-370"
+        },
+        {
+          id: 106,
+          windowId: 1,
+          title: "Love and Risk - Chapter 1 - Online Free",
+          url: "https://example.com/love-and-risk"
+        }
+      ];
+
+      // Add edge-case noise titles (like "N", "Love", "C") to test false positive resistance
+      const extendedTitles = new Set(parsed.titles);
+      extendedTitles.add("n");
+      extendedTitles.add("c");
+      extendedTitles.add("love");
+
+      const comparison = MangaMatcher.compareTabsWithLibrary(mockTabs, extendedTitles);
+
+      const comparisonTests = [
+        {
+          name: 'Total checked tabs equals 6',
+          fn: () => comparison.totalTabs === 6
+        },
+        {
+          name: 'Found 3 manga already in library (One Piece, Jujutsu Kaisen, Spy x Family)',
+          fn: () => comparison.foundCount === 3
+        },
+        {
+          name: 'Identified 3 missing manga (Chainsaw Man, Berserk, Love and Risk)',
+          fn: () => comparison.missingCount === 3
+        },
+        {
+          name: 'Crucial: "Love and Risk" is NOT falsely matched by "Love" or "N"',
+          fn: () => comparison.missing.some(m => m.cleanedTitle.includes("love and risk"))
+        },
+        {
+          name: 'Grouped missing by domain "mangaplus.shueisha.co.jp", "readberserk.com", and "example.com"',
+          fn: () => {
+            const domains = Object.keys(comparison.missingByDomain);
+            return domains.includes('mangaplus.shueisha.co.jp') && domains.includes('readberserk.com') && domains.includes('example.com');
+          }
+        },
+        {
+          name: 'Domain extraction stripped "www." properly',
+          fn: () => {
+            const d = TitleCleaner.extractDomain("https://www.mangakakalot.com/manga");
+            return d === "mangakakalot.com";
+          }
+        }
+      ];
+
+      renderGroup("3. Cross-Referencing & Domain Grouping Tests", comparisonTests);
+
+      // Final Summary
+      const summaryBox = document.createElement('div');
+      const allPassed = passedTests === totalTests;
+      summaryBox.className = `summary ${allPassed ? 'all-passed' : 'some-failed'}`;
+      summaryBox.textContent = `Test Results: ${passedTests} / ${totalTests} tests passed (${allPassed ? '100% SUCCESS' : 'FAILURES DETECTED'})`;
+      resultsContainer.prepend(summaryBox);
+    }
+
+    runProtobufTests();
+  </script>
+</body>
+</html>

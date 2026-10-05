@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload Backup - Komikku Compare</title>
+  <link rel="stylesheet" href="popup.css">
+  <style>
+    body {
+      width: 100vw;
+      min-height: 100vh;
+      max-height: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 50% 20%, #171b26 0%, #0d0f15 80%);
+      padding: 24px;
+    }
+    .upload-page-container {
+      width: 100%;
+      max-width: 520px;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      animation: fadeIn 0.3s ease;
+    }
+    .upload-page-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 16px;
+    }
+    .upload-page-header h1 {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .upload-page-header p {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+    .large-drop-zone {
+      padding: 36px 20px;
+      border-width: 2px;
+      border-style: dashed;
+      border-color: rgba(255, 255, 255, 0.16);
+      background-color: rgba(255, 255, 255, 0.02);
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.2s ease;
+    }
+    .large-drop-zone:hover, .large-drop-zone.dragover {
+      border-color: var(--accent-primary);
+      background-color: var(--accent-glow);
+    }
+    .large-drop-zone .upload-icon svg {
+      width: 48px;
+      height: 48px;
+    }
+    .success-card {
+      background-color: var(--color-success-bg);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      text-align: center;
+    }
+    .success-card h3 {
+      color: var(--color-success);
+      font-size: 15px;
+    }
+    .success-card p {
+      color: var(--text-secondary);
+      font-size: 12.5px;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .button-group button {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="upload-page-container">
+    <div class="upload-page-header">
+      <div class="logo-icon" style="width: 44px; height: 44px;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"></path>
+          <path d="M6 6h10"></path>
+          <path d="M6 10h10"></path>
+          <path d="M6 14h6"></path>
+        </svg>
+      </div>
+      <div>
+        <h1>Komikku Library Backup Loader</h1>
+        <p>Upload your <code>.tachibk</code> file to sync your manga library</p>
+      </div>
+    </div>
+
+    <!-- Upload Area -->
+    <div id="uploadContainer">
+      <div class="large-drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".tachibk,.proto.gz,.gz,.json" style="display: none;" />
+        <div class="upload-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">
+            Click to select your <code class="code-tag">.tachibk</code> file
+          </div>
+          <div style="font-size: 12px; color: var(--text-secondary);">
+            or drag and drop it here from your file manager
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="progress-bar-container hidden" id="progressBarContainer" style="margin-top: 16px;">
+        <div class="progress-bar-fill" id="progressBarFill"></div>
+        <span class="progress-text" id="progressText">Decompressing and indexing manga library...</span>
+      </div>
+    </div>
+
+    <!-- Success Container -->
+    <div class="success-card hidden" id="successCard">
+      <div style="font-size: 28px;">✓</div>
+      <h3 id="successTitle">Library Loaded Successfully!</h3>
+      <p id="successDesc">0 manga titles have been saved to your browser storage.</p>
+      <div class="button-group">
+        <button type="button" class="btn-primary" id="returnBtn">Close Tab & Return</button>
+        <button type="button" class="btn-secondary" id="replaceBtn">Upload Different File</button>
+      </div>
+    </div>
+
+    <!-- Note about Firefox/Zen popup focus -->
+    <div style="font-size: 11.5px; color: var(--text-muted); line-height: 1.4; border-top: 1px solid var(--border-color); padding-top: 12px;">
+      ℹ️ <strong>Why did this tab open?</strong> Firefox/Zen Browser closes toolbar popups whenever the native OS file picker appears. Opening this tab allows you to safely choose your file without interruptions.
+    </div>
+  </div>
+
+  <script src="lib/pako.min.js"></script>
+  <script src="lib/backup-parser.js"></script>
+  <script src="upload.js"></script>
+</body>
+</html>

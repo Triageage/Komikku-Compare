@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Komikku Compare</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-group">
+        <div class="logo-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"></path>
+            <path d="M6 6h10"></path>
+            <path d="M6 10h10"></path>
+            <path d="M6 14h6"></path>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <h1>Komikku Compare</h1>
+          <span class="badge-zen">Zen Browser</span>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <div class="library-badge" id="libraryBadge" title="Loaded library status">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="badgeText">No backup loaded</span>
+        </div>
+        <button type="button" class="btn-icon" id="openTabBtn" title="Open extension in a full tab / split view" style="padding: 4px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <line x1="10" y1="14" x2="21" y2="3"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="app-main">
+      <!-- Backup Upload Section -->
+      <section class="card upload-card" id="uploadSection">
+        <div class="drop-zone" id="dropZone">
+          <input type="file" id="fileInput" accept=".tachibk,.proto.gz,.gz,.json" class="file-input" />
+          <div class="drop-zone-content" id="dropZoneContent">
+            <div class="upload-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+            </div>
+            <div class="upload-text">
+              <span class="upload-title">Drop your <code class="code-tag">.tachibk</code> file here</span>
+              <span class="upload-subtitle">or <button type="button" class="btn-link" id="browseBtn">browse files</button></span>
+            </div>
+          </div>
+
+          <!-- Active File Info Display -->
+          <div class="file-info hidden" id="fileInfo">
+            <div class="file-meta">
+              <span class="file-name" id="fileName">backup.tachibk</span>
+              <span class="file-stats" id="fileStats">0 titles parsed</span>
+            </div>
+            <button type="button" class="btn-icon" id="clearFileBtn" title="Unload backup">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Parser Progress / Error Notification -->
+        <div class="progress-bar-container hidden" id="progressBarContainer">
+          <div class="progress-bar-fill" id="progressBarFill"></div>
+          <span class="progress-text" id="progressText">Decompressing and parsing backup...</span>
+        </div>
+      </section>
+
+      <!-- Action & Tab Selection Section -->
+      <section class="card action-card">
+        <div class="tab-status-row">
+          <div class="tab-count-indicator">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+            </svg>
+            <span id="selectedTabsCountLabel">Scanning tabs...</span>
+          </div>
+          <button type="button" class="btn-refresh" id="refreshTabsBtn" title="Refresh tab counts">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Friendly Reminder Notice for Single Tab / No Multi-Selection -->
+        <div class="multi-select-notice hidden" id="multiSelectNotice">
+          <div class="notice-icon">💡</div>
+          <div class="notice-body">
+            <strong>Pro Tip:</strong> Only 1 tab is highlighted. In Zen Browser, hold <kbd>Ctrl</kbd> (or <kbd>Cmd</kbd>) or <kbd>Shift</kbd> and click tabs to multi-select them before processing!
+          </div>
+        </div>
+
+        <!-- Primary Action Button -->
+        <div class="action-buttons-row">
+          <button type="button" class="btn-primary" id="processBtn" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+            <span>Process Selected Tabs</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Results Section -->
+      <section class="results-section hidden" id="resultsSection">
+        <!-- Results Summary Bar -->
+        <div class="summary-metrics">
+          <div class="metric-pill">
+            <span class="metric-label">Checked</span>
+            <span class="metric-value" id="metricChecked">0</span>
+          </div>
+          <div class="metric-pill metric-success">
+            <span class="metric-label">In Library</span>
+            <span class="metric-value" id="metricInLibrary">0</span>
+          </div>
+          <div class="metric-pill metric-highlight">
+            <span class="metric-label">Missing</span>
+            <span class="metric-value" id="metricMissing">0</span>
+          </div>
+        </div>
+
+        <!-- Quick Filters & Export Toolbar -->
+        <div class="results-toolbar">
+          <div class="search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="filterInput" placeholder="Filter missing manga..." />
+          </div>
+          <button type="button" class="btn-secondary btn-sm" id="copyBtn" title="Copy missing manga list">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span>Copy</span>
+          </button>
+        </div>
+
+        <!-- Missing Manga List Grouped by Domain -->
+        <div class="results-list" id="resultsList">
+          <!-- Populated dynamically via JS -->
+        </div>
+
+        <!-- All Found State (Celebration) -->
+        <div class="all-found-state hidden" id="allFoundState">
+          <div class="all-found-icon">🎉</div>
+          <h3>All Caught Up!</h3>
+          <p>Every selected manga is already in your Komikku library.</p>
+        </div>
+
+        <!-- Found Manga Collapsible Area (Transparency) -->
+        <div class="found-collapsible hidden" id="foundCollapsible">
+          <button type="button" class="found-toggle-btn" id="foundToggleBtn">
+            <span>Manga already in library (<span id="foundToggleCount">0</span>)</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="foundToggleArrow">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="found-list-container hidden" id="foundListContainer">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <span class="footer-tip">Made for Zen Browser & Komikku</span>
+      <span class="footer-version">v1.0.0</span>
+    </footer>
+  </div>
+
+  <!-- Scripts: bundled Pako, helper modules, and popup orchestrator -->
+  <script src="lib/pako.min.js"></script>
+  <script src="lib/backup-parser.js"></script>
+  <script src="lib/title-cleaner.js"></script>
+  <script src="lib/matcher.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
