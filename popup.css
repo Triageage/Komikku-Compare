@@ -43,8 +43,14 @@
   padding: 0;
 }
 
+html {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-primary);
+}
+
 body {
-  width: 430px;
+  width: 450px;
   min-height: 480px;
   max-height: 600px;
   margin: 0;
@@ -57,6 +63,13 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
   user-select: none;
+  scrollbar-gutter: stable;
+}
+
+/* Custom Sleek Scrollbar - Standard for Firefox / Zen Browser */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) rgba(0, 0, 0, 0.2);
 }
 
 @media (min-width: 500px) {
@@ -78,26 +91,27 @@ body {
   }
 }
 
-/* Custom Sleek Scrollbar */
+/* Custom Sleek Scrollbar for WebKit / Chromium */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(0, 0, 0, 0.15);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.25);
   border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .app-container {
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  padding: 16px;
+  padding: 16px 16px 36px 16px;
   gap: 12px;
 }
 
@@ -661,6 +675,12 @@ body {
 
 /* Results Toolbar */
 .results-toolbar {
+  position: sticky;
+  top: -16px;
+  z-index: 15;
+  background-color: var(--bg-primary);
+  padding: 8px 0;
+  margin: -6px 0 2px 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -717,9 +737,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 250px;
-  overflow-y: auto;
-  padding-right: 4px;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
 }
 
 .domain-group {
@@ -727,6 +747,11 @@ body {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.domain-group:hover {
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .domain-header {
@@ -736,6 +761,13 @@ body {
   padding: 8px 12px;
   background-color: rgba(255, 255, 255, 0.03);
   border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.domain-header:hover {
+  background-color: rgba(255, 255, 255, 0.06);
 }
 
 .domain-info {
@@ -750,6 +782,12 @@ body {
   color: var(--color-info);
 }
 
+.domain-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .domain-badge {
   font-size: 10px;
   font-weight: 600;
@@ -757,6 +795,86 @@ body {
   color: var(--accent-primary);
   padding: 2px 6px;
   border-radius: var(--radius-full);
+}
+
+.domain-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: transform 0.2s ease, color 0.15s ease;
+}
+
+.domain-header:hover .domain-chevron {
+  color: var(--text-primary);
+}
+
+.domain-group.collapsed .domain-chevron {
+  transform: rotate(-90deg);
+}
+
+.domain-group.collapsed .domain-header {
+  border-bottom: none;
+}
+
+.domain-group.collapsed .manga-items-container {
+  display: none;
+}
+
+/* Selection & Checkboxes */
+.domain-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.manga-checkbox-container {
+  display: flex;
+  align-items: center;
+  margin-right: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.manga-checkbox,
+.domain-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  display: grid;
+  place-content: center;
+  transition: all 0.15s ease;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.manga-checkbox:hover,
+.domain-checkbox:hover {
+  border-color: var(--color-success);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.manga-checkbox:checked,
+.domain-checkbox:checked {
+  background-color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.manga-checkbox:checked::before,
+.domain-checkbox:checked::before {
+  content: "";
+  width: 8px;
+  height: 5px;
+  border-left: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  transform: rotate(-45deg) translate(0.5px, -0.5px);
 }
 
 .manga-items-container {
@@ -781,12 +899,21 @@ body {
   background-color: var(--bg-card-hover);
 }
 
+.manga-item.selected {
+  background-color: rgba(16, 185, 129, 0.04);
+}
+
+.manga-item.selected:hover {
+  background-color: rgba(16, 185, 129, 0.08);
+}
+
 .manga-details {
   display: flex;
   flex-direction: column;
   gap: 2px;
   overflow: hidden;
   margin-right: 8px;
+  flex: 1;
 }
 
 .manga-clean-title {
@@ -931,12 +1058,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 180px;
+  max-height: 240px;
   overflow-y: auto;
   margin-top: 6px;
   padding: 4px;
   background: rgba(0, 0, 0, 0.2);
   border-radius: var(--radius-md);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 }
 
 .found-item {

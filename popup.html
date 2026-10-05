@@ -147,8 +147,8 @@
                 </svg>
               </div>
               <div class="download-card-info">
-                <span class="download-card-title">Add Missing to .tachibk</span>
-                <span class="download-card-subtitle">Export an updated backup file with all <strong id="downloadMissingCount">0</strong> missing manga added to library</span>
+                <span class="download-card-title">Add Selected to .tachibk</span>
+                <span class="download-card-subtitle">Choose manga to add (<strong id="downloadSelectedCount">0</strong> of <strong id="downloadTotalMissingCount">0</strong> selected)</span>
               </div>
             </div>
             <button type="button" class="btn-download" id="downloadBackupBtn">
@@ -191,6 +191,12 @@
             </svg>
             <input type="text" id="filterInput" placeholder="Filter missing manga..." />
           </div>
+          <button type="button" class="btn-secondary btn-sm" id="toggleSelectAllBtn" title="Toggle select or deselect all missing manga">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <span id="toggleSelectAllText">Deselect All</span>
+          </button>
           <button type="button" class="btn-secondary btn-sm" id="copyBtn" title="Copy missing manga list">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>

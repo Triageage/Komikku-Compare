@@ -18,6 +18,7 @@
     originalBackupBuffer: null,
     highlightedTabs: [],
     lastComparisonResults: null,
+    selectedMissingTabIds: new Set(),
     lastExportedTabs: []
   };
 
@@ -45,13 +46,16 @@
     metricInLibrary: document.getElementById('metricInLibrary'),
     metricMissing: document.getElementById('metricMissing'),
     downloadBackupCard: document.getElementById('downloadBackupCard'),
-    downloadMissingCount: document.getElementById('downloadMissingCount'),
+    downloadSelectedCount: document.getElementById('downloadSelectedCount'),
+    downloadTotalMissingCount: document.getElementById('downloadTotalMissingCount'),
     downloadBackupBtn: document.getElementById('downloadBackupBtn'),
     downloadBackupBtnText: document.getElementById('downloadBackupBtnText'),
     downloadInstructions: document.getElementById('downloadInstructions'),
     closeExportedTabsBtn: document.getElementById('closeExportedTabsBtn'),
     closeExportedTabsBtnText: document.getElementById('closeExportedTabsBtnText'),
     filterInput: document.getElementById('filterInput'),
+    toggleSelectAllBtn: document.getElementById('toggleSelectAllBtn'),
+    toggleSelectAllText: document.getElementById('toggleSelectAllText'),
     copyBtn: document.getElementById('copyBtn'),
     resultsList: document.getElementById('resultsList'),
     allFoundState: document.getElementById('allFoundState'),
@@ -223,6 +227,11 @@
       });
     }
 
+    // Toggle select/deselect all missing manga
+    if (elements.toggleSelectAllBtn) {
+      elements.toggleSelectAllBtn.addEventListener('click', handleToggleSelectAll);
+    }
+
     // Search filter
     elements.filterInput.addEventListener('input', () => {
       if (state.lastComparisonResults) {
@@ -295,6 +304,7 @@
     state.backupFileName = '';
     state.originalBackupBuffer = null;
     state.lastComparisonResults = null;
+    state.selectedMissingTabIds.clear();
     state.lastExportedTabs = [];
 
     try {
@@ -433,6 +443,86 @@
   }
 
   /**
+   * Updates selection counts, button texts, and enabled states based on state.selectedMissingTabIds.
+   */
+  function updateSelectionUI() {
+    const selectedCount = state.selectedMissingTabIds.size;
+    const totalMissing = state.lastComparisonResults ? state.lastComparisonResults.missingCount : 0;
+
+    if (elements.downloadSelectedCount) {
+      elements.downloadSelectedCount.textContent = selectedCount;
+    }
+    if (elements.downloadTotalMissingCount) {
+      elements.downloadTotalMissingCount.textContent = totalMissing;
+    }
+
+    if (elements.toggleSelectAllText) {
+      if (totalMissing > 0 && selectedCount === totalMissing) {
+        elements.toggleSelectAllText.textContent = 'Deselect All';
+      } else {
+        elements.toggleSelectAllText.textContent = 'Select All';
+      }
+    }
+
+    if (elements.downloadBackupBtn) {
+      if (selectedCount === 0) {
+        elements.downloadBackupBtn.disabled = true;
+        elements.downloadBackupBtnText.textContent = 'Select manga to export';
+      } else {
+        elements.downloadBackupBtn.disabled = false;
+        elements.downloadBackupBtnText.textContent = `Download Updated .tachibk (+${selectedCount} Selected)`;
+      }
+    }
+  }
+
+  /**
+   * Toggles select all or deselect all missing manga.
+   */
+  function handleToggleSelectAll() {
+    if (!state.lastComparisonResults || !state.lastComparisonResults.missing) return;
+    const allMissing = state.lastComparisonResults.missing;
+    const shouldSelectAll = state.selectedMissingTabIds.size < allMissing.length;
+
+    if (shouldSelectAll) {
+      state.selectedMissingTabIds = new Set(allMissing.map(m => m.id));
+    } else {
+      state.selectedMissingTabIds.clear();
+    }
+
+    // Update all item checkboxes in DOM
+    const itemCheckboxes = elements.resultsList.querySelectorAll('.manga-checkbox');
+    itemCheckboxes.forEach(cb => {
+      const tabId = Number(cb.dataset.tabId);
+      const isChecked = state.selectedMissingTabIds.has(tabId);
+      cb.checked = isChecked;
+      const itemEl = cb.closest('.manga-item');
+      if (itemEl) {
+        itemEl.classList.toggle('selected', isChecked);
+      }
+    });
+
+    // Update all domain checkboxes and badges in DOM
+    const domainGroups = elements.resultsList.querySelectorAll('.domain-group');
+    domainGroups.forEach(group => {
+      const domainCheckbox = group.querySelector('.domain-checkbox');
+      const domainBadge = group.querySelector('.domain-selected-badge');
+      const cbs = group.querySelectorAll('.manga-checkbox');
+      let checkedInGroup = 0;
+      cbs.forEach(cb => {
+        if (cb.checked) checkedInGroup++;
+      });
+      if (domainCheckbox) {
+        domainCheckbox.checked = cbs.length > 0 && checkedInGroup === cbs.length;
+      }
+      if (domainBadge) {
+        domainBadge.textContent = `${checkedInGroup}/${cbs.length} selected`;
+      }
+    });
+
+    updateSelectionUI();
+  }
+
+  /**
    * Processes the selected (highlighted) tabs against the loaded Komikku library.
    */
   async function handleProcessSelectedTabs() {
@@ -456,6 +546,8 @@
     );
 
     state.lastComparisonResults = comparison;
+    // Default to selecting all missing tabs
+    state.selectedMissingTabIds = new Set(comparison.missing.map(m => m.id));
 
     // Update UI Metrics
     elements.resultsSection.classList.remove('hidden');
@@ -469,10 +561,8 @@
     }
     if (comparison.missingCount > 0 && elements.downloadBackupCard) {
       elements.downloadBackupCard.classList.remove('hidden');
-      elements.downloadMissingCount.textContent = comparison.missingCount;
-      elements.downloadBackupBtnText.textContent = `Download Updated .tachibk (+${comparison.missingCount})`;
-      elements.downloadBackupBtn.disabled = false;
       elements.downloadBackupBtn.classList.remove('loading');
+      updateSelectionUI();
     } else if (elements.downloadBackupCard) {
       elements.downloadBackupCard.classList.add('hidden');
     }
@@ -541,24 +631,104 @@
       const groupEl = document.createElement('div');
       groupEl.className = 'domain-group';
 
+      // Count selected in this domain
+      const selectedInDomain = items.filter(item => state.selectedMissingTabIds.has(item.id)).length;
+      const isDomainAllSelected = items.length > 0 && selectedInDomain === items.length;
+
       // Domain Header
       const headerEl = document.createElement('div');
       headerEl.className = 'domain-header';
-      headerEl.innerHTML = `
-        <div class="domain-info">
-          <span class="domain-name">${escapeHtml(domain)}</span>
-        </div>
-        <span class="domain-badge">${items.length} missing</span>
+      headerEl.title = 'Click to collapse or expand domain';
+
+      const domainInfoEl = document.createElement('div');
+      domainInfoEl.className = 'domain-info';
+
+      const domainLabel = document.createElement('label');
+      domainLabel.className = 'domain-checkbox-label';
+      domainLabel.title = `Toggle all ${items.length} manga from ${domain}`;
+
+      const domainCheckbox = document.createElement('input');
+      domainCheckbox.type = 'checkbox';
+      domainCheckbox.className = 'domain-checkbox';
+      domainCheckbox.checked = isDomainAllSelected;
+
+      const domainNameEl = document.createElement('span');
+      domainNameEl.className = 'domain-name';
+      domainNameEl.textContent = domain;
+
+      domainLabel.appendChild(domainCheckbox);
+      domainLabel.appendChild(domainNameEl);
+      domainInfoEl.appendChild(domainLabel);
+
+      const domainRightEl = document.createElement('div');
+      domainRightEl.className = 'domain-header-right';
+
+      const domainBadge = document.createElement('span');
+      domainBadge.className = 'domain-badge domain-selected-badge';
+      domainBadge.textContent = `${selectedInDomain}/${items.length} selected`;
+
+      const chevronEl = document.createElement('div');
+      chevronEl.className = 'domain-chevron';
+      chevronEl.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
       `;
+
+      domainRightEl.appendChild(domainBadge);
+      domainRightEl.appendChild(chevronEl);
+
+      headerEl.appendChild(domainInfoEl);
+      headerEl.appendChild(domainRightEl);
       groupEl.appendChild(headerEl);
+
+      // Toggle collapse on header click (avoid toggle when clicking checkbox or label)
+      headerEl.addEventListener('click', (e) => {
+        if (e.target.closest('.domain-checkbox') || e.target.closest('.domain-checkbox-label')) {
+          return;
+        }
+        groupEl.classList.toggle('collapsed');
+      });
 
       // Manga Items Container
       const itemsContainer = document.createElement('div');
       itemsContainer.className = 'manga-items-container';
 
+      // Keep references to item checkboxes for syncing domain toggle
+      const itemCheckboxes = [];
+
       for (const item of items) {
         const itemEl = document.createElement('div');
-        itemEl.className = 'manga-item';
+        const isSelected = state.selectedMissingTabIds.has(item.id);
+        itemEl.className = `manga-item${isSelected ? ' selected' : ''}`;
+
+        // Checkbox container
+        const checkboxContainer = document.createElement('label');
+        checkboxContainer.className = 'manga-checkbox-container';
+        checkboxContainer.title = 'Select to add to backup';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'manga-checkbox';
+        checkbox.dataset.tabId = String(item.id);
+        checkbox.checked = isSelected;
+        itemCheckboxes.push(checkbox);
+
+        checkbox.addEventListener('change', () => {
+          if (checkbox.checked) {
+            state.selectedMissingTabIds.add(item.id);
+            itemEl.classList.add('selected');
+          } else {
+            state.selectedMissingTabIds.delete(item.id);
+            itemEl.classList.remove('selected');
+          }
+          const currentCount = items.filter(it => state.selectedMissingTabIds.has(it.id)).length;
+          domainCheckbox.checked = currentCount === items.length;
+          domainBadge.textContent = `${currentCount}/${items.length} selected`;
+          updateSelectionUI();
+        });
+
+        checkboxContainer.appendChild(checkbox);
 
         const detailsEl = document.createElement('div');
         detailsEl.className = 'manga-details';
@@ -590,10 +760,33 @@
           activateTab(item.id, item.windowId);
         });
 
+        itemEl.appendChild(checkboxContainer);
         itemEl.appendChild(detailsEl);
         itemEl.appendChild(switchBtn);
         itemsContainer.appendChild(itemEl);
       }
+
+      // Domain checkbox click toggles all items in this domain
+      domainCheckbox.addEventListener('change', () => {
+        const checkState = domainCheckbox.checked;
+        for (const item of items) {
+          if (checkState) {
+            state.selectedMissingTabIds.add(item.id);
+          } else {
+            state.selectedMissingTabIds.delete(item.id);
+          }
+        }
+        for (const cb of itemCheckboxes) {
+          cb.checked = checkState;
+          const parentItem = cb.closest('.manga-item');
+          if (parentItem) {
+            parentItem.classList.toggle('selected', checkState);
+          }
+        }
+        const currentCount = checkState ? items.length : 0;
+        domainBadge.textContent = `${currentCount}/${items.length} selected`;
+        updateSelectionUI();
+      });
 
       groupEl.appendChild(itemsContainer);
       elements.resultsList.appendChild(groupEl);
@@ -665,11 +858,33 @@
 
       // Remove closed tabs from state
       const closedSet = new Set(tabIds);
-      if (state.lastComparisonResults && Array.isArray(state.lastComparisonResults.found)) {
-        state.lastComparisonResults.found = state.lastComparisonResults.found.filter(
-          t => !closedSet.has(t.id)
-        );
-        state.lastComparisonResults.foundCount = state.lastComparisonResults.found.length;
+      if (state.lastComparisonResults) {
+        if (Array.isArray(state.lastComparisonResults.found)) {
+          state.lastComparisonResults.found = state.lastComparisonResults.found.filter(
+            t => !closedSet.has(t.id)
+          );
+          state.lastComparisonResults.foundCount = state.lastComparisonResults.found.length;
+        }
+        if (Array.isArray(state.lastComparisonResults.missing)) {
+          state.lastComparisonResults.missing = state.lastComparisonResults.missing.filter(
+            t => !closedSet.has(t.id)
+          );
+          state.lastComparisonResults.missingCount = state.lastComparisonResults.missing.length;
+          if (state.lastComparisonResults.missingByDomain) {
+            for (const domain of Object.keys(state.lastComparisonResults.missingByDomain)) {
+              state.lastComparisonResults.missingByDomain[domain] =
+                state.lastComparisonResults.missingByDomain[domain].filter(t => !closedSet.has(t.id));
+              if (state.lastComparisonResults.missingByDomain[domain].length === 0) {
+                delete state.lastComparisonResults.missingByDomain[domain];
+              }
+            }
+          }
+        }
+      }
+
+      // Also clean from selected set
+      for (const id of tabIds) {
+        state.selectedMissingTabIds.delete(id);
       }
 
       const remainingFound = state.lastComparisonResults ? state.lastComparisonResults.foundCount : 0;
@@ -691,6 +906,16 @@
       elements.metricMissing.textContent = remainingMissing;
       elements.metricChecked.textContent = remainingFound + remainingMissing;
       elements.foundToggleCount.textContent = remainingFound;
+      updateSelectionUI();
+
+      if (remainingMissing > 0 && state.lastComparisonResults && state.lastComparisonResults.missingByDomain) {
+        renderResultsList(state.lastComparisonResults.missingByDomain, elements.filterInput.value.trim());
+      } else if (remainingMissing === 0) {
+        elements.resultsList.classList.add('hidden');
+        if (elements.downloadBackupCard) {
+          elements.downloadBackupCard.classList.add('hidden');
+        }
+      }
 
       if (remainingFound === 0) {
         elements.foundCollapsible.classList.add('hidden');
@@ -724,6 +949,15 @@
       return;
     }
 
+    const missingList = (state.lastComparisonResults.missing || []).filter(
+      item => state.selectedMissingTabIds.has(item.id)
+    );
+
+    if (missingList.length === 0) {
+      alert('Please select at least one missing manga to add to your backup.');
+      return;
+    }
+
     // Ensure we have the original backup buffer
     if (!state.originalBackupBuffer) {
       if (typeof BackupStorage !== 'undefined') {
@@ -745,7 +979,6 @@
       return;
     }
 
-    const missingList = state.lastComparisonResults.missing;
     elements.downloadBackupBtn.disabled = true;
     elements.downloadBackupBtn.classList.add('loading');
     elements.downloadBackupBtnText.textContent = 'Generating updated backup...';
@@ -778,6 +1011,11 @@
       // Track last exported tabs for tab closing convenience
       state.lastExportedTabs = missingList.map(item => item.id).filter(Boolean);
 
+      // Deselect the exported items
+      for (const item of missingList) {
+        state.selectedMissingTabIds.delete(item.id);
+      }
+
       // Update in-memory library with newly added titles
       for (const title of exportResult.addedTitles) {
         state.komikkuTitles.add(title.toLowerCase());
@@ -798,6 +1036,37 @@
         elements.closeExportedTabsBtn.classList.remove('hidden');
         elements.closeExportedTabsBtnText.textContent = `Close Exported Tabs (${state.lastExportedTabs.length})`;
       }
+
+      // Update checkboxes and counters in UI
+      const itemCheckboxes = elements.resultsList.querySelectorAll('.manga-checkbox');
+      itemCheckboxes.forEach(cb => {
+        const tabId = Number(cb.dataset.tabId);
+        const isChecked = state.selectedMissingTabIds.has(tabId);
+        cb.checked = isChecked;
+        const itemEl = cb.closest('.manga-item');
+        if (itemEl) {
+          itemEl.classList.toggle('selected', isChecked);
+        }
+      });
+
+      const domainGroups = elements.resultsList.querySelectorAll('.domain-group');
+      domainGroups.forEach(group => {
+        const domainCheckbox = group.querySelector('.domain-checkbox');
+        const domainBadge = group.querySelector('.domain-selected-badge');
+        const cbs = group.querySelectorAll('.manga-checkbox');
+        let checkedInGroup = 0;
+        cbs.forEach(cb => {
+          if (cb.checked) checkedInGroup++;
+        });
+        if (domainCheckbox) {
+          domainCheckbox.checked = cbs.length > 0 && checkedInGroup === cbs.length;
+        }
+        if (domainBadge) {
+          domainBadge.textContent = `${checkedInGroup}/${cbs.length} selected`;
+        }
+      });
+
+      updateSelectionUI();
     } catch (err) {
       console.error('Failed to export updated backup:', err);
       alert(`Error creating updated backup: ${err.message}`);

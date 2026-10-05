@@ -354,6 +354,54 @@
 
       renderGroup("4. Backup Export & Protobuf Splicing Tests", exportTests);
 
+      // 5. Selective Manga Export Tests
+      const allDetectedMissing = [
+        { id: 101, cleanedTitle: "Chainsaw Man", url: "https://example.com/cm", domain: "example.com" },
+        { id: 102, cleanedTitle: "Berserk", url: "https://example.com/berserk", domain: "example.com" },
+        { id: 103, cleanedTitle: "Love and Risk", url: "https://example.com/lar", domain: "example.com" },
+        { id: 104, cleanedTitle: "Dandadan", url: "https://example.com/dandadan", domain: "example.com" }
+      ];
+
+      // Simulate user selecting only Berserk (102) and Dandadan (104)
+      const userSelectedIds = new Set([102, 104]);
+      const selectedToExport = allDetectedMissing.filter(m => userSelectedIds.has(m.id));
+
+      const selectiveExportResult = await BackupParser.exportUpdatedBackup(gzippedBytes.buffer, selectedToExport);
+      const selectiveParsed = await BackupParser.parseKomikkuBackup(selectiveExportResult.compressedBytes.buffer);
+
+      const selectiveTests = [
+        {
+          name: 'Filter correctly selected 2 of 4 missing manga based on user selection set',
+          fn: () => selectedToExport.length === 2 && selectedToExport.map(m => m.cleanedTitle).join(',') === 'Berserk,Dandadan'
+        },
+        {
+          name: 'Selective export added exactly 2 manga',
+          fn: () => selectiveExportResult.addedCount === 2
+        },
+        {
+          name: 'Selected "Berserk" is present in exported backup',
+          fn: () => selectiveParsed.titles.has("berserk")
+        },
+        {
+          name: 'Selected "Dandadan" is present in exported backup',
+          fn: () => selectiveParsed.titles.has("dandadan")
+        },
+        {
+          name: 'Unselected "Chainsaw Man" is NOT added to exported backup',
+          fn: () => !selectiveParsed.titles.has("chainsaw man")
+        },
+        {
+          name: 'Unselected "Love and Risk" is NOT added to exported backup',
+          fn: () => !selectiveParsed.titles.has("love and risk")
+        },
+        {
+          name: 'Original backup entries remain preserved in selective backup',
+          fn: () => selectiveParsed.titles.has("one piece") && selectiveParsed.count === 7 // 5 original + 2 selected
+        }
+      ];
+
+      renderGroup("5. Selective Manga Export Tests", selectiveTests);
+
       // Final Summary
       const summaryBox = document.createElement('div');
       const allPassed = passedTests === totalTests;
