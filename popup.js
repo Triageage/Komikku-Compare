@@ -50,7 +50,11 @@
     foundCollapsible: document.getElementById('foundCollapsible'),
     foundToggleBtn: document.getElementById('foundToggleBtn'),
     foundToggleCount: document.getElementById('foundToggleCount'),
-    foundListContainer: document.getElementById('foundListContainer')
+    foundListContainer: document.getElementById('foundListContainer'),
+    closeFoundTabsBtn: document.getElementById('closeFoundTabsBtn'),
+    closeFoundBtnText: document.getElementById('closeFoundBtnText'),
+    closeAllFoundStateBtn: document.getElementById('closeAllFoundStateBtn'),
+    closeAllFoundStateText: document.getElementById('closeAllFoundStateText')
   };
 
   // Storage Keys
@@ -152,6 +156,36 @@
       elements.foundToggleBtn.addEventListener('click', () => {
         elements.foundListContainer.classList.toggle('hidden');
         elements.foundToggleBtn.classList.toggle('open');
+      });
+    }
+
+    // Close Found Tabs (bulk close with confirmation)
+    if (elements.closeFoundTabsBtn) {
+      elements.closeFoundTabsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!state.lastComparisonResults || !state.lastComparisonResults.found) return;
+        const tabIds = state.lastComparisonResults.found.map(t => t.id);
+        handleCloseFoundTabsWithConfirm(
+          elements.closeFoundTabsBtn,
+          elements.closeFoundBtnText,
+          tabIds,
+          'Close Found Tabs'
+        );
+      });
+    }
+
+    // Close All Checked Tabs (celebration state)
+    if (elements.closeAllFoundStateBtn) {
+      elements.closeAllFoundStateBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!state.lastComparisonResults || !state.lastComparisonResults.found) return;
+        const tabIds = state.lastComparisonResults.found.map(t => t.id);
+        handleCloseFoundTabsWithConfirm(
+          elements.closeAllFoundStateBtn,
+          elements.closeAllFoundStateText,
+          tabIds,
+          'Close All Checked Tabs'
+        );
       });
     }
 
@@ -367,8 +401,16 @@
     elements.metricInLibrary.textContent = comparison.foundCount;
     elements.metricMissing.textContent = comparison.missingCount;
 
-    // Reset search filter
+    // Reset search filter and close buttons
     elements.filterInput.value = '';
+    if (elements.closeFoundTabsBtn) {
+      elements.closeFoundTabsBtn.classList.remove('confirming');
+      elements.closeFoundBtnText.textContent = 'Close Found Tabs';
+    }
+    if (elements.closeAllFoundStateBtn) {
+      elements.closeAllFoundStateBtn.classList.remove('confirming');
+      elements.closeAllFoundStateText.textContent = 'Close All Checked Tabs';
+    }
 
     // Render Results List
     if (comparison.missingCount === 0) {
@@ -491,21 +533,165 @@
   }
 
   /**
+   * Confirmation timer for closing tabs to prevent accidental clicks.
+   */
+  let closeConfirmTimer = null;
+
+  /**
+   * Two-step confirmation handler for closing tabs.
+   * First click arms confirmation; second click executes closure.
+   * Auto-reverts after 4 seconds if not confirmed.
+   *
+   * @param {HTMLElement} buttonEl
+   * @param {HTMLElement} textEl
+   * @param {number[]} tabIds
+   * @param {string} defaultText
+   */
+  function handleCloseFoundTabsWithConfirm(buttonEl, textEl, tabIds, defaultText) {
+    if (!tabIds || tabIds.length === 0) return;
+
+    if (!buttonEl.classList.contains('confirming')) {
+      // Step 1: Arm confirmation
+      buttonEl.classList.add('confirming');
+      textEl.textContent = `Confirm Close (${tabIds.length})?`;
+
+      clearTimeout(closeConfirmTimer);
+      closeConfirmTimer = setTimeout(() => {
+        buttonEl.classList.remove('confirming');
+        textEl.textContent = defaultText;
+      }, 4000);
+    } else {
+      // Step 2: Confirmed! Execute tab closure
+      clearTimeout(closeConfirmTimer);
+      buttonEl.classList.remove('confirming');
+      textEl.textContent = 'Closing...';
+      executeCloseTabs(tabIds, buttonEl, textEl, defaultText);
+    }
+  }
+
+  /**
+   * Closes an array of tab IDs and updates application state and counters.
+   * @param {number[]} tabIds
+   * @param {HTMLElement} buttonEl
+   * @param {HTMLElement} textEl
+   * @param {string} defaultText
+   */
+  async function executeCloseTabs(tabIds, buttonEl, textEl, defaultText) {
+    if (!tabIds || tabIds.length === 0) return;
+
+    try {
+      await api.tabs.remove(tabIds);
+
+      textEl.textContent = `✓ Closed ${tabIds.length} tabs!`;
+      setTimeout(() => {
+        textEl.textContent = defaultText;
+      }, 2000);
+
+      // Remove closed tabs from state
+      const closedSet = new Set(tabIds);
+      if (state.lastComparisonResults && Array.isArray(state.lastComparisonResults.found)) {
+        state.lastComparisonResults.found = state.lastComparisonResults.found.filter(
+          t => !closedSet.has(t.id)
+        );
+        state.lastComparisonResults.foundCount = state.lastComparisonResults.found.length;
+      }
+
+      const remainingFound = state.lastComparisonResults ? state.lastComparisonResults.foundCount : 0;
+      const remainingMissing = state.lastComparisonResults ? state.lastComparisonResults.missingCount : 0;
+
+      elements.metricInLibrary.textContent = remainingFound;
+      elements.metricChecked.textContent = remainingFound + remainingMissing;
+      elements.foundToggleCount.textContent = remainingFound;
+
+      if (remainingFound === 0) {
+        elements.foundCollapsible.classList.add('hidden');
+        if (remainingMissing === 0) {
+          elements.allFoundState.innerHTML = `
+            <div class="all-found-icon" style="color: var(--color-success);">✓</div>
+            <h3>All Library Tabs Closed</h3>
+            <p>Your open tabs are now clean and up to date.</p>
+          `;
+        }
+      } else {
+        renderFoundList(state.lastComparisonResults.found);
+      }
+
+      await updateHighlightedTabs();
+    } catch (err) {
+      console.error('Error closing tabs:', err);
+      textEl.textContent = 'Failed to close tabs';
+      setTimeout(() => {
+        textEl.textContent = defaultText;
+      }, 2000);
+    }
+  }
+
+  /**
    * Renders the list of manga that were found in the Komikku library.
-   * Provides full transparency into what matched and why.
-   * @param {Array<{ cleanedTitle: string, originalTitle: string, matchedWith: string }>} foundItems
+   * Provides full transparency into what matched and individual tab close buttons.
+   * @param {Array<{ id: number, cleanedTitle: string, originalTitle: string, matchedWith: string }>} foundItems
    */
   function renderFoundList(foundItems) {
     if (!elements.foundListContainer) return;
     elements.foundListContainer.innerHTML = '';
 
-    for (const item of foundItems) {
+    for (let i = 0; i < foundItems.length; i++) {
+      const item = foundItems[i];
       const el = document.createElement('div');
       el.className = 'found-item';
-      el.innerHTML = `
+
+      const detailsEl = document.createElement('div');
+      detailsEl.className = 'found-item-details';
+      detailsEl.innerHTML = `
         <span class="found-item-title" title="${escapeHtml(item.originalTitle)}">${escapeHtml(item.cleanedTitle)}</span>
         <span class="found-item-matched" title="Matched with library entry: ${escapeHtml(item.matchedWith)}">✓ ${escapeHtml(item.matchedWith)}</span>
       `;
+
+      // Individual close button
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'btn-close-single-tab';
+      closeBtn.title = 'Close this tab in Zen Browser';
+      closeBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      `;
+
+      closeBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+          await api.tabs.remove(item.id);
+          el.style.opacity = '0';
+          setTimeout(() => {
+            el.remove();
+            if (state.lastComparisonResults && Array.isArray(state.lastComparisonResults.found)) {
+              const idx = state.lastComparisonResults.found.findIndex(f => f.id === item.id);
+              if (idx !== -1) {
+                state.lastComparisonResults.found.splice(idx, 1);
+                state.lastComparisonResults.foundCount = state.lastComparisonResults.found.length;
+
+                const remainingFound = state.lastComparisonResults.foundCount;
+                const remainingMissing = state.lastComparisonResults.missingCount;
+                elements.metricInLibrary.textContent = remainingFound;
+                elements.metricChecked.textContent = remainingFound + remainingMissing;
+                elements.foundToggleCount.textContent = remainingFound;
+
+                if (remainingFound === 0) {
+                  elements.foundCollapsible.classList.add('hidden');
+                }
+              }
+            }
+            updateHighlightedTabs();
+          }, 150);
+        } catch (err) {
+          console.warn('Failed to close tab:', err);
+        }
+      });
+
+      el.appendChild(detailsEl);
+      el.appendChild(closeBtn);
       elements.foundListContainer.appendChild(el);
     }
   }

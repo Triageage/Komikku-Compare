@@ -690,19 +690,28 @@ body {
   padding-top: 8px;
 }
 
-.found-toggle-btn {
-  width: 100%;
+.found-header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+}
+
+.found-toggle-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   background: transparent;
   border: none;
   color: var(--text-secondary);
   font-size: 11.5px;
+  font-weight: 500;
   cursor: pointer;
-  padding: 6px 4px;
+  padding: 5px 4px;
   border-radius: var(--radius-sm);
   transition: color 0.15s ease;
+  text-align: left;
 }
 
 .found-toggle-btn:hover {
@@ -715,6 +724,61 @@ body {
 
 .found-toggle-btn.open svg {
   transform: rotate(180deg);
+}
+
+.btn-danger {
+  background-color: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-danger:hover {
+  background-color: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}
+
+.btn-danger.confirming {
+  background-color: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.6);
+  color: #fbbf24;
+  animation: pulse-danger 1s infinite alternate ease-in-out;
+}
+
+@keyframes pulse-danger {
+  0% { box-shadow: 0 0 4px rgba(245, 158, 11, 0.3); }
+  100% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.6); }
+}
+
+.btn-close-single-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+.btn-close-single-tab:hover {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #f87171;
 }
 
 .found-list-container {
@@ -739,13 +803,20 @@ body {
   font-size: 11px;
 }
 
+.found-item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  flex: 1;
+}
+
 .found-item-title {
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
 }
 
 .found-item-matched {
@@ -754,7 +825,6 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 160px;
 }
 
 /* Celebration State */
