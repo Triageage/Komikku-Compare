@@ -402,6 +402,47 @@
 
       renderGroup("5. Selective Manga Export Tests", selectiveTests);
 
+      // 6. 64-Bit Source ID Precision & URL Extraction Tests
+      const comixId = "7537715367149829912";
+      const encodedSourcePayload = BackupParser.createBackupSourcePayload("Comix", comixId);
+      const parsedSources = BackupParser.parseBackupSources(new Uint8Array(encodedSourcePayload));
+      const resolvedComix = BackupParser.resolveSourceForDomain("comix.to", parsedSources);
+
+      const sourceTests = [
+        {
+          name: 'readVarintBigInt decodes 64-bit ID (> 2^53) with zero precision loss',
+          fn: () => {
+            const encoded = BackupParser.writeVarint(comixId);
+            const [decoded] = BackupParser.readVarintBigInt(encoded, 0);
+            return decoded.toString() === comixId;
+          }
+        },
+        {
+          name: 'parseBackupSources accurately preserves Comix 64-bit ID "7537715367149829912"',
+          fn: () => parsedSources.byName.get("comix") === comixId
+        },
+        {
+          name: 'resolveSourceForDomain resolves "comix.to" to exact Komikku source ID',
+          fn: () => resolvedComix.name === "Comix" && resolvedComix.id === comixId
+        },
+        {
+          name: 'extractMangaUrl strips /title prefix for Comix to prevent title/title 404',
+          fn: () => {
+            const rel = BackupParser.extractMangaUrl("https://comix.to/title/60kxg-love-and-risk", "comix.to");
+            return rel === "/60kxg-love-and-risk";
+          }
+        },
+        {
+          name: 'extractMangaUrl strips both chapter segment and /title prefix for Comix reader tabs',
+          fn: () => {
+            const rel = BackupParser.extractMangaUrl("https://comix.to/title/60kxg-love-and-risk/chapter-1", "comix.to");
+            return rel === "/60kxg-love-and-risk";
+          }
+        }
+      ];
+
+      renderGroup("6. 64-Bit Source ID Precision Tests", sourceTests);
+
       // Final Summary
       const summaryBox = document.createElement('div');
       const allPassed = passedTests === totalTests;
