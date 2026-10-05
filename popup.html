@@ -135,6 +135,53 @@
           </div>
         </div>
 
+        <!-- Download Updated Backup Action Card -->
+        <div class="download-backup-card hidden" id="downloadBackupCard">
+          <div class="download-card-content">
+            <div class="download-card-header">
+              <div class="download-card-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+              </div>
+              <div class="download-card-info">
+                <span class="download-card-title">Add Missing to .tachibk</span>
+                <span class="download-card-subtitle">Export an updated backup file with all <strong id="downloadMissingCount">0</strong> missing manga added to library</span>
+              </div>
+            </div>
+            <button type="button" class="btn-download" id="downloadBackupBtn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="download-icon">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span id="downloadBackupBtnText">Download Updated .tachibk</span>
+            </button>
+          </div>
+
+          <!-- Post-Download Instructions Banner -->
+          <div class="download-instructions hidden" id="downloadInstructions">
+            <div class="instruction-badge">✓ Download Complete</div>
+            <div class="instruction-title">How to restore in Komikku:</div>
+            <ol class="instruction-steps">
+              <li>Send or transfer the downloaded <code class="code-tag">.tachibk</code> file to your phone.</li>
+              <li>In <strong>Komikku</strong>: Open <strong>More → Data and storage → Restore backup</strong>.</li>
+              <li>Select this file. All new manga will be directly added to your Library!</li>
+            </ol>
+            <div class="instruction-actions">
+              <button type="button" class="btn-secondary btn-sm" id="closeExportedTabsBtn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                <span id="closeExportedTabsBtnText">Close Exported Tabs</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Quick Filters & Export Toolbar -->
         <div class="results-toolbar">
           <div class="search-box">
@@ -205,6 +252,7 @@
 
   <!-- Scripts: bundled Pako, helper modules, and popup orchestrator -->
   <script src="lib/pako.min.js"></script>
+  <script src="lib/backup-storage.js"></script>
   <script src="lib/backup-parser.js"></script>
   <script src="lib/title-cleaner.js"></script>
   <script src="lib/matcher.js"></script>

@@ -15,8 +15,10 @@
     komikkuTitles: new Set(),
     komikkuTitlesList: [],
     backupFileName: '',
+    originalBackupBuffer: null,
     highlightedTabs: [],
-    lastComparisonResults: null
+    lastComparisonResults: null,
+    lastExportedTabs: []
   };
 
   // DOM Elements
@@ -42,6 +44,13 @@
     metricChecked: document.getElementById('metricChecked'),
     metricInLibrary: document.getElementById('metricInLibrary'),
     metricMissing: document.getElementById('metricMissing'),
+    downloadBackupCard: document.getElementById('downloadBackupCard'),
+    downloadMissingCount: document.getElementById('downloadMissingCount'),
+    downloadBackupBtn: document.getElementById('downloadBackupBtn'),
+    downloadBackupBtnText: document.getElementById('downloadBackupBtnText'),
+    downloadInstructions: document.getElementById('downloadInstructions'),
+    closeExportedTabsBtn: document.getElementById('closeExportedTabsBtn'),
+    closeExportedTabsBtnText: document.getElementById('closeExportedTabsBtnText'),
     filterInput: document.getElementById('filterInput'),
     copyBtn: document.getElementById('copyBtn'),
     resultsList: document.getElementById('resultsList'),
@@ -67,6 +76,21 @@
     setupEventListeners();
     await restoreSavedLibrary();
     await updateHighlightedTabs();
+
+    // Check IndexedDB for persisted backup buffer
+    if (typeof BackupStorage !== 'undefined') {
+      try {
+        const stored = await BackupStorage.getBackup();
+        if (stored && stored.buffer) {
+          state.originalBackupBuffer = stored.buffer;
+          if (!state.backupFileName && stored.fileName) {
+            state.backupFileName = stored.fileName;
+          }
+        }
+      } catch (e) {
+        console.warn('Could not restore backup buffer from IndexedDB:', e);
+      }
+    }
 
     // Listen for storage changes from upload tab
     if (api.storage && api.storage.onChanged) {
@@ -151,6 +175,16 @@
     // Process selected tabs
     elements.processBtn.addEventListener('click', handleProcessSelectedTabs);
 
+    // Download updated backup with missing manga
+    if (elements.downloadBackupBtn) {
+      elements.downloadBackupBtn.addEventListener('click', handleDownloadUpdatedBackup);
+    }
+
+    // Close exported tabs
+    if (elements.closeExportedTabsBtn) {
+      elements.closeExportedTabsBtn.addEventListener('click', handleCloseExportedTabs);
+    }
+
     // Found manga collapsible toggle
     if (elements.foundToggleBtn) {
       elements.foundToggleBtn.addEventListener('click', () => {
@@ -205,16 +239,28 @@
    */
   async function restoreSavedLibrary() {
     try {
-      if (!api.storage || !api.storage.local) return;
-      const data = await api.storage.local.get(STORAGE_KEY_BACKUP);
-      if (data && data[STORAGE_KEY_BACKUP]) {
-        const saved = data[STORAGE_KEY_BACKUP];
-        if (Array.isArray(saved.titles) && saved.titles.length > 0) {
-          state.komikkuTitles = new Set(saved.titles.map(t => t.toLowerCase()));
-          state.komikkuTitlesList = saved.titles;
-          state.backupFileName = saved.fileName || 'backup.tachibk';
+      if (api.storage && api.storage.local) {
+        const data = await api.storage.local.get(STORAGE_KEY_BACKUP);
+        if (data && data[STORAGE_KEY_BACKUP]) {
+          const saved = data[STORAGE_KEY_BACKUP];
+          if (Array.isArray(saved.titles) && saved.titles.length > 0) {
+            state.komikkuTitles = new Set(saved.titles.map(t => t.toLowerCase()));
+            state.komikkuTitlesList = saved.titles;
+            state.backupFileName = saved.fileName || 'backup.tachibk';
 
-          showLoadedFileUI(state.backupFileName, state.komikkuTitles.size);
+            showLoadedFileUI(state.backupFileName, state.komikkuTitles.size);
+          }
+        }
+      }
+
+      // Also retrieve raw buffer from IndexedDB if not already in memory
+      if (!state.originalBackupBuffer && typeof BackupStorage !== 'undefined') {
+        const stored = await BackupStorage.getBackup();
+        if (stored && stored.buffer) {
+          state.originalBackupBuffer = stored.buffer;
+          if (!state.backupFileName && stored.fileName) {
+            state.backupFileName = stored.fileName;
+          }
         }
       }
     } catch (e) {
@@ -247,11 +293,16 @@
     state.komikkuTitles.clear();
     state.komikkuTitlesList = [];
     state.backupFileName = '';
+    state.originalBackupBuffer = null;
     state.lastComparisonResults = null;
+    state.lastExportedTabs = [];
 
     try {
       if (api.storage && api.storage.local) {
         await api.storage.local.remove(STORAGE_KEY_BACKUP);
+      }
+      if (typeof BackupStorage !== 'undefined') {
+        await BackupStorage.clearBackup();
       }
     } catch (e) {}
 
@@ -329,7 +380,19 @@
       // Allow DOM to update progress animation
       await new Promise(resolve => setTimeout(resolve, 30));
 
-      const parsed = await BackupParser.parseKomikkuBackup(file);
+      const arrayBuffer = await file.arrayBuffer();
+      state.originalBackupBuffer = arrayBuffer;
+      state.backupFileName = file.name;
+
+      if (typeof BackupStorage !== 'undefined') {
+        try {
+          await BackupStorage.saveBackup(arrayBuffer, file.name);
+        } catch (e) {
+          console.warn('BackupStorage save failed:', e);
+        }
+      }
+
+      const parsed = await BackupParser.parseKomikkuBackup(arrayBuffer);
 
       if (parsed.count === 0) {
         alert('No manga titles could be extracted from this file. Please ensure it is a valid Komikku or Tachiyomi backup (.tachibk / .proto.gz).');
@@ -339,7 +402,6 @@
 
       state.komikkuTitles = parsed.titles;
       state.komikkuTitlesList = parsed.titlesList;
-      state.backupFileName = file.name;
 
       // Save to local storage for persistence
       await saveLibraryToStorage(file.name, parsed.titlesList);
@@ -400,6 +462,20 @@
     elements.metricChecked.textContent = comparison.totalTabs;
     elements.metricInLibrary.textContent = comparison.foundCount;
     elements.metricMissing.textContent = comparison.missingCount;
+
+    // Configure Download Updated Backup Card
+    if (elements.downloadInstructions) {
+      elements.downloadInstructions.classList.add('hidden');
+    }
+    if (comparison.missingCount > 0 && elements.downloadBackupCard) {
+      elements.downloadBackupCard.classList.remove('hidden');
+      elements.downloadMissingCount.textContent = comparison.missingCount;
+      elements.downloadBackupBtnText.textContent = `Download Updated .tachibk (+${comparison.missingCount})`;
+      elements.downloadBackupBtn.disabled = false;
+      elements.downloadBackupBtn.classList.remove('loading');
+    } else if (elements.downloadBackupCard) {
+      elements.downloadBackupCard.classList.add('hidden');
+    }
 
     // Reset search filter and close buttons
     elements.filterInput.value = '';
@@ -599,7 +675,20 @@
       const remainingFound = state.lastComparisonResults ? state.lastComparisonResults.foundCount : 0;
       const remainingMissing = state.lastComparisonResults ? state.lastComparisonResults.missingCount : 0;
 
+      // Update exported tabs count if any were closed
+      if (Array.isArray(state.lastExportedTabs) && state.lastExportedTabs.length > 0) {
+        state.lastExportedTabs = state.lastExportedTabs.filter(id => !closedSet.has(id));
+        if (elements.closeExportedTabsBtn) {
+          if (state.lastExportedTabs.length === 0) {
+            elements.closeExportedTabsBtn.classList.add('hidden');
+          } else {
+            elements.closeExportedTabsBtnText.textContent = `Close Exported Tabs (${state.lastExportedTabs.length})`;
+          }
+        }
+      }
+
       elements.metricInLibrary.textContent = remainingFound;
+      elements.metricMissing.textContent = remainingMissing;
       elements.metricChecked.textContent = remainingFound + remainingMissing;
       elements.foundToggleCount.textContent = remainingFound;
 
@@ -624,6 +713,112 @@
         textEl.textContent = defaultText;
       }, 2000);
     }
+  }
+
+  /**
+   * Generates and downloads an updated .tachibk containing all missing manga.
+   */
+  async function handleDownloadUpdatedBackup() {
+    if (!state.lastComparisonResults || state.lastComparisonResults.missingCount === 0) {
+      alert('No missing manga to add to backup.');
+      return;
+    }
+
+    // Ensure we have the original backup buffer
+    if (!state.originalBackupBuffer) {
+      if (typeof BackupStorage !== 'undefined') {
+        try {
+          const stored = await BackupStorage.getBackup();
+          if (stored && stored.buffer) {
+            state.originalBackupBuffer = stored.buffer;
+            if (!state.backupFileName && stored.fileName) {
+              state.backupFileName = stored.fileName;
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    if (!state.originalBackupBuffer) {
+      alert('The original backup file data is not available in memory. Please select or drag & drop your .tachibk file again.');
+      triggerSafeFileSelect();
+      return;
+    }
+
+    const missingList = state.lastComparisonResults.missing;
+    elements.downloadBackupBtn.disabled = true;
+    elements.downloadBackupBtn.classList.add('loading');
+    elements.downloadBackupBtnText.textContent = 'Generating updated backup...';
+
+    try {
+      // Yield to allow animation frame
+      await new Promise(r => setTimeout(r, 40));
+
+      const exportResult = await BackupParser.exportUpdatedBackup(
+        state.originalBackupBuffer,
+        missingList
+      );
+
+      // Generate output filename
+      const baseName = (state.backupFileName || 'komikku_backup')
+        .replace(/\.(tachibk|proto\.gz|gz|json)$/i, '');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const downloadName = `${baseName}_added_${exportResult.addedCount}_manga_${dateStr}.tachibk`;
+
+      // Trigger download via Blob URL
+      const blobUrl = URL.createObjectURL(exportResult.blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = downloadName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+
+      // Track last exported tabs for tab closing convenience
+      state.lastExportedTabs = missingList.map(item => item.id).filter(Boolean);
+
+      // Update in-memory library with newly added titles
+      for (const title of exportResult.addedTitles) {
+        state.komikkuTitles.add(title.toLowerCase());
+        state.komikkuTitlesList.push(title);
+      }
+      // Save updated titles to storage
+      await saveLibraryToStorage(state.backupFileName, state.komikkuTitlesList);
+
+      // Update library count in header badge
+      showLoadedFileUI(state.backupFileName, state.komikkuTitles.size);
+
+      // Show completed button state and instructions banner
+      elements.downloadBackupBtnText.textContent = `✓ Downloaded (+${exportResult.addedCount} Added)`;
+      elements.downloadBackupBtn.classList.remove('loading');
+      elements.downloadInstructions.classList.remove('hidden');
+
+      if (elements.closeExportedTabsBtn && state.lastExportedTabs.length > 0) {
+        elements.closeExportedTabsBtn.classList.remove('hidden');
+        elements.closeExportedTabsBtnText.textContent = `Close Exported Tabs (${state.lastExportedTabs.length})`;
+      }
+    } catch (err) {
+      console.error('Failed to export updated backup:', err);
+      alert(`Error creating updated backup: ${err.message}`);
+      elements.downloadBackupBtnText.textContent = 'Download Updated .tachibk';
+      elements.downloadBackupBtn.disabled = false;
+      elements.downloadBackupBtn.classList.remove('loading');
+    }
+  }
+
+  /**
+   * Closes browser tabs that were exported to the backup file.
+   */
+  function handleCloseExportedTabs() {
+    if (!state.lastExportedTabs || state.lastExportedTabs.length === 0) return;
+    const tabIds = [...state.lastExportedTabs];
+    handleCloseFoundTabsWithConfirm(
+      elements.closeExportedTabsBtn,
+      elements.closeExportedTabsBtnText,
+      tabIds,
+      `Close Exported Tabs (${tabIds.length})`
+    );
   }
 
   /**

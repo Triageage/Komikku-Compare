@@ -48,6 +48,7 @@
     }
   </style>
   <script src="../lib/pako.min.js"></script>
+  <script src="../lib/backup-storage.js"></script>
   <script src="../lib/backup-parser.js"></script>
   <script src="../lib/title-cleaner.js"></script>
   <script src="../lib/matcher.js"></script>
@@ -154,9 +155,9 @@
       for (const item of mangaList) {
         const mangaPayload = [];
 
-        // Field 2: url (wire type 2 -> tag 0x14)
+        // Field 2: url (wire type 2 -> tag 0x12)
         const urlBytes = textEncoder.encode(item.url || '/manga/1');
-        mangaPayload.push(...encodeVarint(0x14));
+        mangaPayload.push(...encodeVarint((2 << 3) | 2));
         mangaPayload.push(...encodeVarint(urlBytes.length));
         mangaPayload.push(...urlBytes);
 
@@ -292,6 +293,66 @@
       ];
 
       renderGroup("3. Cross-Referencing & Domain Grouping Tests", comparisonTests);
+
+      // 4. Backup Export and Protobuf Splicing Tests
+      const missingToAdd = [
+        {
+          cleanedTitle: "Chainsaw Man",
+          url: "https://mangaplus.shueisha.co.jp/viewer/1015600",
+          domain: "mangaplus.shueisha.co.jp"
+        },
+        {
+          cleanedTitle: "Love and Risk",
+          url: "https://weebcentral.com/series/love-and-risk",
+          domain: "weebcentral.com"
+        }
+      ];
+
+      const exportResult = await BackupParser.exportUpdatedBackup(gzippedBytes.buffer, missingToAdd);
+      const reParsed = await BackupParser.parseKomikkuBackup(exportResult.compressedBytes.buffer);
+
+      const exportTests = [
+        {
+          name: 'exportUpdatedBackup produced compressed byte stream and blob',
+          fn: () => exportResult.compressedBytes.length > 0 && exportResult.blob instanceof Blob
+        },
+        {
+          name: 'Correctly added exactly 2 missing manga',
+          fn: () => exportResult.addedCount === 2
+        },
+        {
+          name: 'Re-parsed backup count increased from 5 to 7',
+          fn: () => reParsed.count === 7
+        },
+        {
+          name: 'Newly added "Chainsaw Man" is now present in re-parsed library',
+          fn: () => reParsed.titles.has("chainsaw man")
+        },
+        {
+          name: 'Newly added "Love and Risk" is now present in re-parsed library',
+          fn: () => reParsed.titles.has("love and risk")
+        },
+        {
+          name: 'Original manga "One Piece" remains preserved in re-parsed library',
+          fn: () => reParsed.titles.has("one piece")
+        },
+        {
+          name: 'Domain resolution matched Weeb Central to ID 2131019126180322627',
+          fn: () => {
+            const src = BackupParser.resolveSourceForDomain("weebcentral.com");
+            return src.id === "2131019126180322627";
+          }
+        },
+        {
+          name: 'Domain resolution generated stable positive 64-bit ID for new domain',
+          fn: () => {
+            const src = BackupParser.resolveSourceForDomain("customnewsource.org");
+            return src.isNew === true && BigInt(src.id) > 0n;
+          }
+        }
+      ];
+
+      renderGroup("4. Backup Export & Protobuf Splicing Tests", exportTests);
 
       // Final Summary
       const summaryBox = document.createElement('div');
