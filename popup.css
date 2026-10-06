@@ -50,7 +50,7 @@ html {
 }
 
 body {
-  width: 450px;
+  width: 480px;
   min-height: 480px;
   max-height: 600px;
   margin: 0;
@@ -834,6 +834,7 @@ body {
   display: flex;
   align-items: center;
   margin-right: 10px;
+  margin-top: 2px;
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -884,9 +885,9 @@ body {
 
 .manga-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 9px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   transition: background-color 0.15s ease;
 }
@@ -910,28 +911,53 @@ body {
 .manga-details {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  overflow: hidden;
-  margin-right: 8px;
+  gap: 3px;
+  margin-right: 10px;
   flex: 1;
+  min-width: 0;
 }
 
+.manga-tab-title,
 .manga-clean-title {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text-primary);
-  text-transform: capitalize;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 
+.manga-backup-title,
 .manga-raw-title {
-  font-size: 10.5px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.backup-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--color-success);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  background-color: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  border-radius: 4px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
+
+.backup-name {
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .btn-switch-tab {
@@ -948,6 +974,8 @@ body {
   gap: 4px;
   white-space: nowrap;
   transition: all 0.2s ease;
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .btn-switch-tab:hover {
@@ -1070,7 +1098,7 @@ body {
 
 .found-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 6px 8px;
   background: rgba(255, 255, 255, 0.02);
@@ -1081,25 +1109,28 @@ body {
 .found-item-details {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  overflow: hidden;
+  gap: 2px;
+  margin-right: 6px;
   flex: 1;
+  min-width: 0;
 }
 
 .found-item-title {
   font-weight: 500;
   color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 
 .found-item-matched {
   font-size: 10px;
   color: var(--color-success);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 
 /* Celebration State */

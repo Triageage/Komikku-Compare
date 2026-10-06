@@ -621,6 +621,7 @@
           item =>
             item.cleanedTitle.toLowerCase().includes(query) ||
             item.originalTitle.toLowerCase().includes(query) ||
+            (item.backupTitle && item.backupTitle.toLowerCase().includes(query)) ||
             domain.toLowerCase().includes(query)
         );
       }
@@ -733,18 +734,31 @@
         const detailsEl = document.createElement('div');
         detailsEl.className = 'manga-details';
 
-        const cleanTitleEl = document.createElement('div');
-        cleanTitleEl.className = 'manga-clean-title';
-        cleanTitleEl.textContent = item.cleanedTitle;
-        cleanTitleEl.title = item.cleanedTitle;
+        // Upper Title: exactly the page that is open
+        const tabTitleEl = document.createElement('div');
+        tabTitleEl.className = 'manga-tab-title';
+        tabTitleEl.textContent = item.originalTitle;
+        tabTitleEl.title = `${item.originalTitle}\n${item.url}`;
 
-        const rawTitleEl = document.createElement('div');
-        rawTitleEl.className = 'manga-raw-title';
-        rawTitleEl.textContent = item.originalTitle;
-        rawTitleEl.title = item.url;
+        // Below Title: how the title will be added to the backup
+        const backupTitleEl = document.createElement('div');
+        backupTitleEl.className = 'manga-backup-title';
+        const displayBackupTitle = item.backupTitle || item.cleanedTitle;
+        backupTitleEl.title = `Title to be added to .tachibk backup: "${displayBackupTitle}"`;
 
-        detailsEl.appendChild(cleanTitleEl);
-        detailsEl.appendChild(rawTitleEl);
+        const backupLabel = document.createElement('span');
+        backupLabel.className = 'backup-label';
+        backupLabel.textContent = 'Added as:';
+
+        const backupName = document.createElement('span');
+        backupName.className = 'backup-name';
+        backupName.textContent = displayBackupTitle;
+
+        backupTitleEl.appendChild(backupLabel);
+        backupTitleEl.appendChild(backupName);
+
+        detailsEl.appendChild(tabTitleEl);
+        detailsEl.appendChild(backupTitleEl);
 
         // Switch to Tab Button
         const switchBtn = document.createElement('button');
@@ -793,11 +807,15 @@
     }
 
     if (totalRendered === 0 && query) {
-      elements.resultsList.innerHTML = `
-        <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 12px;">
-          No missing manga matching "<strong>${escapeHtml(query)}</strong>"
-        </div>
-      `;
+      elements.resultsList.textContent = '';
+      const emptyDiv = document.createElement('div');
+      emptyDiv.style.cssText = 'text-align: center; padding: 20px; color: var(--text-muted); font-size: 12px;';
+      emptyDiv.appendChild(document.createTextNode('No missing manga matching "'));
+      const strongEl = document.createElement('strong');
+      strongEl.textContent = query;
+      emptyDiv.appendChild(strongEl);
+      emptyDiv.appendChild(document.createTextNode('"'));
+      elements.resultsList.appendChild(emptyDiv);
     }
   }
 
@@ -920,11 +938,21 @@
       if (remainingFound === 0) {
         elements.foundCollapsible.classList.add('hidden');
         if (remainingMissing === 0) {
-          elements.allFoundState.innerHTML = `
-            <div class="all-found-icon" style="color: var(--color-success);">✓</div>
-            <h3>All Library Tabs Closed</h3>
-            <p>Your open tabs are now clean and up to date.</p>
-          `;
+          elements.allFoundState.textContent = '';
+          const iconDiv = document.createElement('div');
+          iconDiv.className = 'all-found-icon';
+          iconDiv.style.color = 'var(--color-success)';
+          iconDiv.textContent = '✓';
+
+          const titleH3 = document.createElement('h3');
+          titleH3.textContent = 'All Library Tabs Closed';
+
+          const descP = document.createElement('p');
+          descP.textContent = 'Your open tabs are now clean and up to date.';
+
+          elements.allFoundState.appendChild(iconDiv);
+          elements.allFoundState.appendChild(titleH3);
+          elements.allFoundState.appendChild(descP);
         }
       } else {
         renderFoundList(state.lastComparisonResults.found);
@@ -1106,10 +1134,19 @@
 
       const detailsEl = document.createElement('div');
       detailsEl.className = 'found-item-details';
-      detailsEl.innerHTML = `
-        <span class="found-item-title" title="${escapeHtml(item.originalTitle)}">${escapeHtml(item.cleanedTitle)}</span>
-        <span class="found-item-matched" title="Matched with library entry: ${escapeHtml(item.matchedWith)}">✓ ${escapeHtml(item.matchedWith)}</span>
-      `;
+
+      const titleSpan = document.createElement('span');
+      titleSpan.className = 'found-item-title';
+      titleSpan.title = item.originalTitle || '';
+      titleSpan.textContent = item.cleanedTitle || '';
+
+      const matchedSpan = document.createElement('span');
+      matchedSpan.className = 'found-item-matched';
+      matchedSpan.title = `Matched with library entry: ${item.matchedWith || ''}`;
+      matchedSpan.textContent = `✓ ${item.matchedWith || ''}`;
+
+      detailsEl.appendChild(titleSpan);
+      detailsEl.appendChild(matchedSpan);
 
       // Individual close button
       const closeBtn = document.createElement('button');

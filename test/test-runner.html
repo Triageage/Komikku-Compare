@@ -438,6 +438,47 @@
             const rel = BackupParser.extractMangaUrl("https://comix.to/title/60kxg-love-and-risk/chapter-1", "comix.to");
             return rel === "/60kxg-love-and-risk";
           }
+        },
+        {
+          name: 'extractMangaUrl strips /<chapterId>-chapter-<num> for Comix multi-segment chapter URLs',
+          fn: () => {
+            const chapterUrl = "https://comix.to/title/20kz5-i-reincarnated-as-a-lazy-villainous-prince-and-built-an-evil-boob-kingdom-i-was-living-freely-in-the-game-world-so-why-wont-the-beautiful-girls-leave-me-alone/11452354-chapter-1";
+            const rel = BackupParser.extractMangaUrl(chapterUrl, "comix.to");
+            return rel === "/20kz5-i-reincarnated-as-a-lazy-villainous-prince-and-built-an-evil-boob-kingdom-i-was-living-freely-in-the-game-world-so-why-wont-the-beautiful-girls-leave-me-alone";
+          }
+        },
+        {
+          name: 'cleanTabTitle isolates manga title from chapter page tab title',
+          fn: () => {
+            const tabTitle = "I Reincarnated as a Lazy Villainous Prince - Chapter 1 - Comix";
+            const cleaned = TitleCleaner.cleanTabTitle(tabTitle, "https://comix.to/title/20kz5-slug/11452354-chapter-1");
+            return cleaned === "i reincarnated as a lazy villainous prince";
+          }
+        },
+        {
+          name: 'cleanTabTitle strips middle dot "· Ch.39" and isolates title',
+          fn: () => {
+            const raw = "Betrayed by the Hero, I Formed a MILF Party With His Mom! · Ch.39";
+            const cleaned = TitleCleaner.cleanTabTitle(raw, "https://comix.to/title/123");
+            return cleaned === "betrayed by the hero, i formed a milf party with his mom!";
+          }
+        },
+        {
+          name: 'cleanTabTitle preserves original casing when preserveCase option is true',
+          fn: () => {
+            const raw = "Betrayed by the Hero, I Formed a MILF Party With His Mom! · Ch.39";
+            const displayTitle = TitleCleaner.cleanTabTitle(raw, "https://comix.to/title/123", true);
+            return displayTitle === "Betrayed by the Hero, I Formed a MILF Party With His Mom!";
+          }
+        },
+        {
+          name: 'cleanTabTitle cleans "Jujutsu Kaisen chapter 33" preserving casing with preserveCase',
+          fn: () => {
+            const raw = "Jujutsu Kaisen chapter 33";
+            const display = TitleCleaner.cleanTabTitle(raw, "", true);
+            const lower = TitleCleaner.cleanTabTitle(raw, "");
+            return display === "Jujutsu Kaisen" && lower === "jujutsu kaisen";
+          }
         }
       ];
 
