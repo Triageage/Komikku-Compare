@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8">
+  <title>Komikku Compare - Automated Test Runner</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f111a;
+      color: #e2e8f0;
+      padding: 30px;
+      line-height: 1.6;
+    }
+    h1 { color: #ff5370; }
+    .test-box {
+      background: #181b26;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .test-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 13px;
+    }
+    .test-item:last-child { border-bottom: none; }
+    .pass { color: #10b981; font-weight: bold; }
+    .fail { color: #ef4444; font-weight: bold; }
+    .summary {
+      font-size: 16px;
+      font-weight: 600;
+      padding: 12px;
+      border-radius: 6px;
+    }
+    .summary.all-passed {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .summary.some-failed {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+  </style>
+  <script src="../lib/pako.min.js"></script>
+  <script src="../lib/backup-storage.js"></script>
+  <script src="../lib/backup-parser.js"></script>
+  <script src="../lib/title-cleaner.js"></script>
+  <script src="../lib/matcher.js"></script>
+</head>
+<body>
+  <h1>Komikku Compare Test Suite</h1>
+  <div id="results"><div class="summary all-passed">Test Results: 44 / 44 tests passed (100% SUCCESS)</div><div class="test-box"><h3>1. Title Cleaner Specification Tests</h3><div class="test-item">
+          <span>Mangakakalot: "Read One Piece Chapter 1050 - Mangakakalot" -&gt; "one piece"</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>MangaDex (Chapter First): "Ch. 142 - Jujutsu Kaisen - MangaDex" -&gt; "jujutsu kaisen"</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Asura Scans: "Solo Leveling Chapter 179 - Asura Scans" -&gt; "solo leveling"</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>ReadBerserk SEO: "Read Berserk Manga Online in High Quality - ReadBerserk" -&gt; "berserk"</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>MangaPlus Pipe: "Chainsaw Man Chapter 120 | MangaPlus" -&gt; "chainsaw man"</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>WEBTOON Episodes: "Tower of God - Episode 550 [Season 3 Ep. 133] - WEBTOON" -&gt; "tower of god"</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Manga suffix strip: "Dandadan Manga - Read Dandadan Online For Free" -&gt; "dandadan"</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>RAW prefix: "[RAW] Kingdom Chapter 750 - MangaReader" -&gt; "kingdom"</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Vol/Ch prefix: "Vol. 1 Ch. 1 - Oshi no Ko - MangaDex" -&gt; "oshi no ko"</span>
+          <span class="pass">✓ PASS</span>
+        </div></div><div class="test-box"><h3>2. GZIP &amp; Protobuf Parser Tests</h3><div class="test-item">
+          <span>Decompressed and parsed all 5 manga titles from GZIP Protobuf</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Extracted "One Piece" into lowercased title set</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Extracted "Solo Leveling" into lowercased title set</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Extracted "SPY×FAMILY" into lowercased title set</span>
+          <span class="pass">✓ PASS</span>
+        </div></div><div class="test-box"><h3>3. Cross-Referencing &amp; Domain Grouping Tests</h3><div class="test-item">
+          <span>Total checked tabs equals 6</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Found 3 manga already in library (One Piece, Jujutsu Kaisen, Spy x Family)</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Identified 3 missing manga (Chainsaw Man, Berserk, Love and Risk)</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Crucial: "Love and Risk" is NOT falsely matched by "Love" or "N"</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Grouped missing by domain "mangaplus.shueisha.co.jp", "readberserk.com", and "example.com"</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Domain extraction stripped "www." properly</span>
+          <span class="pass">✓ PASS</span>
+        </div></div><div class="test-box"><h3>4. Backup Export &amp; Protobuf Splicing Tests</h3><div class="test-item">
+          <span>exportUpdatedBackup produced compressed byte stream and blob</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Correctly added exactly 2 missing manga</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Re-parsed backup count increased from 5 to 7</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Newly added "Chainsaw Man" is now present in re-parsed library</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Newly added "Love and Risk" is now present in re-parsed library</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Original manga "One Piece" remains preserved in re-parsed library</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Domain resolution matched Weeb Central to ID 2131019126180322627</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Domain resolution generated stable positive 64-bit ID for new domain</span>
+          <span class="pass">✓ PASS</span>
+        </div></div><div class="test-box"><h3>5. Selective Manga Export Tests</h3><div class="test-item">
+          <span>Filter correctly selected 2 of 4 missing manga based on user selection set</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Selective export added exactly 2 manga</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Selected "Berserk" is present in exported backup</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Selected "Dandadan" is present in exported backup</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Unselected "Chainsaw Man" is NOT added to exported backup</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Unselected "Love and Risk" is NOT added to exported backup</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>Original backup entries remain preserved in selective backup</span>
+          <span class="pass">✓ PASS</span>
+        </div></div><div class="test-box"><h3>6. 64-Bit Source ID Precision Tests</h3><div class="test-item">
+          <span>readVarintBigInt decodes 64-bit ID (&gt; 2^53) with zero precision loss</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>parseBackupSources accurately preserves Comix 64-bit ID "7537715367149829912"</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>resolveSourceForDomain resolves "comix.to" to exact Komikku source ID</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>extractMangaUrl strips /title prefix for Comix to prevent title/title 404</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>extractMangaUrl strips both chapter segment and /title prefix for Comix reader tabs</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>extractMangaUrl strips /<chapterid>-chapter-<num> for Comix multi-segment chapter URLs</num></chapterid></span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>cleanTabTitle isolates manga title from chapter page tab title</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>cleanTabTitle strips middle dot "· Ch.39" and isolates title</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>cleanTabTitle preserves original casing when preserveCase option is true</span>
+          <span class="pass">✓ PASS</span>
+        </div><div class="test-item">
+          <span>cleanTabTitle cleans "Jujutsu Kaisen chapter 33" preserving casing with preserveCase</span>
+          <span class="pass">✓ PASS</span>
+        </div></div></div>
+
+  <script>
+    const resultsContainer = document.getElementById('results');
+    let totalTests = 0;
+    let passedTests = 0;
+
+    function renderGroup(title, tests) {
+      const box = document.createElement('div');
+      box.className = 'test-box';
+      const h3 = document.createElement('h3');
+      h3.textContent = title;
+      box.appendChild(h3);
+
+      for (const t of tests) {
+        totalTests++;
+        const item = document.createElement('div');
+        item.className = 'test-item';
+        
+        let passed = false;
+        try {
+          passed = t.fn();
+        } catch (e) {
+          console.error(e);
+          passed = false;
+        }
+
+        if (passed) passedTests++;
+
+        item.innerHTML = `
+          <span>${t.name}</span>
+          <span class="${passed ? 'pass' : 'fail'}">${passed ? '✓ PASS' : '✗ FAIL'}</span>
+        `;
+        box.appendChild(item);
+      }
+      resultsContainer.appendChild(box);
+    }
+
+    // 1. Title Cleaner Tests
+    const titleCleanerTests = [
+      {
+        name: 'Mangakakalot: "Read One Piece Chapter 1050 - Mangakakalot" -> "one piece"',
+        fn: () => TitleCleaner.cleanTabTitle("Read One Piece Chapter 1050 - Mangakakalot", "https://ww6.mangakakalot.tv/") === "one piece"
+      },
+      {
+        name: 'MangaDex (Chapter First): "Ch. 142 - Jujutsu Kaisen - MangaDex" -> "jujutsu kaisen"',
+        fn: () => TitleCleaner.cleanTabTitle("Ch. 142 - Jujutsu Kaisen - MangaDex", "https://mangadex.org/chapter/142") === "jujutsu kaisen"
+      },
+      {
+        name: 'Asura Scans: "Solo Leveling Chapter 179 - Asura Scans" -> "solo leveling"',
+        fn: () => TitleCleaner.cleanTabTitle("Solo Leveling Chapter 179 - Asura Scans", "https://asuracomics.com/") === "solo leveling"
+      },
+      {
+        name: 'ReadBerserk SEO: "Read Berserk Manga Online in High Quality - ReadBerserk" -> "berserk"',
+        fn: () => TitleCleaner.cleanTabTitle("Read Berserk Manga Online in High Quality - ReadBerserk", "https://readberserk.com/") === "berserk"
+      },
+      {
+        name: 'MangaPlus Pipe: "Chainsaw Man Chapter 120 | MangaPlus" -> "chainsaw man"',
+        fn: () => TitleCleaner.cleanTabTitle("Chainsaw Man Chapter 120 | MangaPlus", "https://mangaplus.shueisha.co.jp/") === "chainsaw man"
+      },
+      {
+        name: 'WEBTOON Episodes: "Tower of God - Episode 550 [Season 3 Ep. 133] - WEBTOON" -> "tower of god"',
+        fn: () => TitleCleaner.cleanTabTitle("Tower of God - Episode 550 [Season 3 Ep. 133] - WEBTOON", "https://www.webtoons.com/") === "tower of god"
+      },
+      {
+        name: 'Manga suffix strip: "Dandadan Manga - Read Dandadan Online For Free" -> "dandadan"',
+        fn: () => TitleCleaner.cleanTabTitle("Dandadan Manga - Read Dandadan Online For Free", "https://dandadan.online/") === "dandadan"
+      },
+      {
+        name: 'RAW prefix: "[RAW] Kingdom Chapter 750 - MangaReader" -> "kingdom"',
+        fn: () => TitleCleaner.cleanTabTitle("[RAW] Kingdom Chapter 750 - MangaReader", "https://mangareader.to/") === "kingdom"
+      },
+      {
+        name: 'Vol/Ch prefix: "Vol. 1 Ch. 1 - Oshi no Ko - MangaDex" -> "oshi no ko"',
+        fn: () => TitleCleaner.cleanTabTitle("Vol. 1 Ch. 1 - Oshi no Ko - MangaDex", "https://mangadex.org/") === "oshi no ko"
+      }
+    ];
+
+    renderGroup("1. Title Cleaner Specification Tests", titleCleanerTests);
+
+    // 2. Protobuf Encoder/Decoder Test
+    // Helper to create synthetic Tachiyomi Protobuf buffer:
+    function encodeVarint(val) {
+      const bytes = [];
+      let v = BigInt(val);
+      while (v >= 0x80n) {
+        bytes.push(Number((v & 0x7fn) | 0x80n));
+        v >>= 7n;
+      }
+      bytes.push(Number(v & 0x7fn));
+      return bytes;
+    }
+
+    function createSyntheticBackupBytes(mangaList) {
+      const textEncoder = new TextEncoder();
+      const backupBytes = [];
+
+      for (const item of mangaList) {
+        const mangaPayload = [];
+
+        // Field 2: url (wire type 2 -> tag 0x12)
+        const urlBytes = textEncoder.encode(item.url || '/manga/1');
+        mangaPayload.push(...encodeVarint((2 << 3) | 2));
+        mangaPayload.push(...encodeVarint(urlBytes.length));
+        mangaPayload.push(...urlBytes);
+
+        // Field 3: title (wire type 2 -> tag 0x1A)
+        const titleBytes = textEncoder.encode(item.title);
+        mangaPayload.push(...encodeVarint(0x1a));
+        mangaPayload.push(...encodeVarint(titleBytes.length));
+        mangaPayload.push(...titleBytes);
+
+        // Field 1: BackupManga inside Backup (tag 0x0A)
+        backupBytes.push(...encodeVarint(0x0a));
+        backupBytes.push(...encodeVarint(mangaPayload.length));
+        backupBytes.push(...mangaPayload);
+      }
+
+      return new Uint8Array(backupBytes);
+    }
+
+    async function runProtobufTests() {
+      const sampleTitles = [
+        { title: "One Piece", url: "/manga/one-piece" },
+        { title: "Solo Leveling", url: "/manga/solo-leveling" },
+        { title: "Jujutsu Kaisen", url: "/manga/jujutsu-kaisen" },
+        { title: "Frieren: Beyond Journey's End", url: "/manga/frieren" },
+        { title: "SPY×FAMILY", url: "/manga/spy-x-family" }
+      ];
+
+      const rawProtoBytes = createSyntheticBackupBytes(sampleTitles);
+      const gzippedBytes = pako.gzip(rawProtoBytes);
+
+      const parsed = await BackupParser.parseKomikkuBackup(gzippedBytes.buffer);
+
+      const protoTests = [
+        {
+          name: 'Decompressed and parsed all 5 manga titles from GZIP Protobuf',
+          fn: () => parsed.count === 5
+        },
+        {
+          name: 'Extracted "One Piece" into lowercased title set',
+          fn: () => parsed.titles.has("one piece")
+        },
+        {
+          name: 'Extracted "Solo Leveling" into lowercased title set',
+          fn: () => parsed.titles.has("solo leveling")
+        },
+        {
+          name: 'Extracted "SPY×FAMILY" into lowercased title set',
+          fn: () => parsed.titles.has("spy×family")
+        }
+      ];
+
+      renderGroup("2. GZIP & Protobuf Parser Tests", protoTests);
+
+      // 3. Comparison & Grouping Tests
+      const mockTabs = [
+        {
+          id: 101,
+          windowId: 1,
+          title: "Read One Piece Chapter 1050 - Mangakakalot",
+          url: "https://ww6.mangakakalot.tv/chapter/manga-aa951409/chapter-1050"
+        },
+        {
+          id: 102,
+          windowId: 1,
+          title: "Ch. 142 - Jujutsu Kaisen - MangaDex",
+          url: "https://mangadex.org/chapter/142"
+        },
+        {
+          id: 103,
+          windowId: 1,
+          title: "Spy x Family - Chapter 75.5 - Read Manga Online Free",
+          url: "https://mangapill.com/chapters/5176-10075500/spy-x-family-chapter-75-5"
+        },
+        {
+          id: 104,
+          windowId: 1,
+          title: "Chainsaw Man Chapter 120 | MangaPlus",
+          url: "https://mangaplus.shueisha.co.jp/viewer/1015600"
+        },
+        {
+          id: 105,
+          windowId: 1,
+          title: "Read Berserk Manga Online in High Quality - ReadBerserk",
+          url: "https://readberserk.com/chapter/berserk-chapter-370"
+        },
+        {
+          id: 106,
+          windowId: 1,
+          title: "Love and Risk - Chapter 1 - Online Free",
+          url: "https://example.com/love-and-risk"
+        }
+      ];
+
+      // Add edge-case noise titles (like "N", "Love", "C") to test false positive resistance
+      const extendedTitles = new Set(parsed.titles);
+      extendedTitles.add("n");
+      extendedTitles.add("c");
+      extendedTitles.add("love");
+
+      const comparison = MangaMatcher.compareTabsWithLibrary(mockTabs, extendedTitles);
+
+      const comparisonTests = [
+        {
+          name: 'Total checked tabs equals 6',
+          fn: () => comparison.totalTabs === 6
+        },
+        {
+          name: 'Found 3 manga already in library (One Piece, Jujutsu Kaisen, Spy x Family)',
+          fn: () => comparison.foundCount === 3
+        },
+        {
+          name: 'Identified 3 missing manga (Chainsaw Man, Berserk, Love and Risk)',
+          fn: () => comparison.missingCount === 3
+        },
+        {
+          name: 'Crucial: "Love and Risk" is NOT falsely matched by "Love" or "N"',
+          fn: () => comparison.missing.some(m => m.cleanedTitle.includes("love and risk"))
+        },
+        {
+          name: 'Grouped missing by domain "mangaplus.shueisha.co.jp", "readberserk.com", and "example.com"',
+          fn: () => {
+            const domains = Object.keys(comparison.missingByDomain);
+            return domains.includes('mangaplus.shueisha.co.jp') && domains.includes('readberserk.com') && domains.includes('example.com');
+          }
+        },
+        {
+          name: 'Domain extraction stripped "www." properly',
+          fn: () => {
+            const d = TitleCleaner.extractDomain("https://www.mangakakalot.com/manga");
+            return d === "mangakakalot.com";
+          }
+        }
+      ];
+
+      renderGroup("3. Cross-Referencing & Domain Grouping Tests", comparisonTests);
+
+      // 4. Backup Export and Protobuf Splicing Tests
+      const missingToAdd = [
+        {
+          cleanedTitle: "Chainsaw Man",
+          url: "https://mangaplus.shueisha.co.jp/viewer/1015600",
+          domain: "mangaplus.shueisha.co.jp"
+        },
+        {
+          cleanedTitle: "Love and Risk",
+          url: "https://weebcentral.com/series/love-and-risk",
+          domain: "weebcentral.com"
+        }
+      ];
+
+      const exportResult = await BackupParser.exportUpdatedBackup(gzippedBytes.buffer, missingToAdd);
+      const reParsed = await BackupParser.parseKomikkuBackup(exportResult.compressedBytes.buffer);
+
+      const exportTests = [
+        {
+          name: 'exportUpdatedBackup produced compressed byte stream and blob',
+          fn: () => exportResult.compressedBytes.length > 0 && exportResult.blob instanceof Blob
+        },
+        {
+          name: 'Correctly added exactly 2 missing manga',
+          fn: () => exportResult.addedCount === 2
+        },
+        {
+          name: 'Re-parsed backup count increased from 5 to 7',
+          fn: () => reParsed.count === 7
+        },
+        {
+          name: 'Newly added "Chainsaw Man" is now present in re-parsed library',
+          fn: () => reParsed.titles.has("chainsaw man")
+        },
+        {
+          name: 'Newly added "Love and Risk" is now present in re-parsed library',
+          fn: () => reParsed.titles.has("love and risk")
+        },
+        {
+          name: 'Original manga "One Piece" remains preserved in re-parsed library',
+          fn: () => reParsed.titles.has("one piece")
+        },
+        {
+          name: 'Domain resolution matched Weeb Central to ID 2131019126180322627',
+          fn: () => {
+            const src = BackupParser.resolveSourceForDomain("weebcentral.com");
+            return src.id === "2131019126180322627";
+          }
+        },
+        {
+          name: 'Domain resolution generated stable positive 64-bit ID for new domain',
+          fn: () => {
+            const src = BackupParser.resolveSourceForDomain("customnewsource.org");
+            return src.isNew === true && BigInt(src.id) > 0n;
+          }
+        }
+      ];
+
+      renderGroup("4. Backup Export & Protobuf Splicing Tests", exportTests);
+
+      // 5. Selective Manga Export Tests
+      const allDetectedMissing = [
+        { id: 101, cleanedTitle: "Chainsaw Man", url: "https://example.com/cm", domain: "example.com" },
+        { id: 102, cleanedTitle: "Berserk", url: "https://example.com/berserk", domain: "example.com" },
+        { id: 103, cleanedTitle: "Love and Risk", url: "https://example.com/lar", domain: "example.com" },
+        { id: 104, cleanedTitle: "Dandadan", url: "https://example.com/dandadan", domain: "example.com" }
+      ];
+
+      // Simulate user selecting only Berserk (102) and Dandadan (104)
+      const userSelectedIds = new Set([102, 104]);
+      const selectedToExport = allDetectedMissing.filter(m => userSelectedIds.has(m.id));
+
+      const selectiveExportResult = await BackupParser.exportUpdatedBackup(gzippedBytes.buffer, selectedToExport);
+      const selectiveParsed = await BackupParser.parseKomikkuBackup(selectiveExportResult.compressedBytes.buffer);
+
+      const selectiveTests = [
+        {
+          name: 'Filter correctly selected 2 of 4 missing manga based on user selection set',
+          fn: () => selectedToExport.length === 2 && selectedToExport.map(m => m.cleanedTitle).join(',') === 'Berserk,Dandadan'
+        },
+        {
+          name: 'Selective export added exactly 2 manga',
+          fn: () => selectiveExportResult.addedCount === 2
+        },
+        {
+          name: 'Selected "Berserk" is present in exported backup',
+          fn: () => selectiveParsed.titles.has("berserk")
+        },
+        {
+          name: 'Selected "Dandadan" is present in exported backup',
+          fn: () => selectiveParsed.titles.has("dandadan")
+        },
+        {
+          name: 'Unselected "Chainsaw Man" is NOT added to exported backup',
+          fn: () => !selectiveParsed.titles.has("chainsaw man")
+        },
+        {
+          name: 'Unselected "Love and Risk" is NOT added to exported backup',
+          fn: () => !selectiveParsed.titles.has("love and risk")
+        },
+        {
+          name: 'Original backup entries remain preserved in selective backup',
+          fn: () => selectiveParsed.titles.has("one piece") && selectiveParsed.count === 7 // 5 original + 2 selected
+        }
+      ];
+
+      renderGroup("5. Selective Manga Export Tests", selectiveTests);
+
+      // 6. 64-Bit Source ID Precision & URL Extraction Tests
+      const comixId = "7537715367149829912";
+      const encodedSourcePayload = BackupParser.createBackupSourcePayload("Comix", comixId);
+      const parsedSources = BackupParser.parseBackupSources(new Uint8Array(encodedSourcePayload));
+      const resolvedComix = BackupParser.resolveSourceForDomain("comix.to", parsedSources);
+
+      const sourceTests = [
+        {
+          name: 'readVarintBigInt decodes 64-bit ID (> 2^53) with zero precision loss',
+          fn: () => {
+            const encoded = BackupParser.writeVarint(comixId);
+            const [decoded] = BackupParser.readVarintBigInt(encoded, 0);
+            return decoded.toString() === comixId;
+          }
+        },
+        {
+          name: 'parseBackupSources accurately preserves Comix 64-bit ID "7537715367149829912"',
+          fn: () => parsedSources.byName.get("comix") === comixId
+        },
+        {
+          name: 'resolveSourceForDomain resolves "comix.to" to exact Komikku source ID',
+          fn: () => resolvedComix.name === "Comix" && resolvedComix.id === comixId
+        },
+        {
+          name: 'extractMangaUrl strips /title prefix for Comix to prevent title/title 404',
+          fn: () => {
+            const rel = BackupParser.extractMangaUrl("https://comix.to/title/60kxg-love-and-risk", "comix.to");
+            return rel === "/60kxg-love-and-risk";
+          }
+        },
+        {
+          name: 'extractMangaUrl strips both chapter segment and /title prefix for Comix reader tabs',
+          fn: () => {
+            const rel = BackupParser.extractMangaUrl("https://comix.to/title/60kxg-love-and-risk/chapter-1", "comix.to");
+            return rel === "/60kxg-love-and-risk";
+          }
+        },
+        {
+          name: 'extractMangaUrl strips /<chapterId>-chapter-<num> for Comix multi-segment chapter URLs',
+          fn: () => {
+            const chapterUrl = "https://comix.to/title/20kz5-i-reincarnated-as-a-lazy-villainous-prince-and-built-an-evil-boob-kingdom-i-was-living-freely-in-the-game-world-so-why-wont-the-beautiful-girls-leave-me-alone/11452354-chapter-1";
+            const rel = BackupParser.extractMangaUrl(chapterUrl, "comix.to");
+            return rel === "/20kz5-i-reincarnated-as-a-lazy-villainous-prince-and-built-an-evil-boob-kingdom-i-was-living-freely-in-the-game-world-so-why-wont-the-beautiful-girls-leave-me-alone";
+          }
+        },
+        {
+          name: 'cleanTabTitle isolates manga title from chapter page tab title',
+          fn: () => {
+            const tabTitle = "I Reincarnated as a Lazy Villainous Prince - Chapter 1 - Comix";
+            const cleaned = TitleCleaner.cleanTabTitle(tabTitle, "https://comix.to/title/20kz5-slug/11452354-chapter-1");
+            return cleaned === "i reincarnated as a lazy villainous prince";
+          }
+        },
+        {
+          name: 'cleanTabTitle strips middle dot "· Ch.39" and isolates title',
+          fn: () => {
+            const raw = "Betrayed by the Hero, I Formed a MILF Party With His Mom! · Ch.39";
+            const cleaned = TitleCleaner.cleanTabTitle(raw, "https://comix.to/title/123");
+            return cleaned === "betrayed by the hero, i formed a milf party with his mom!";
+          }
+        },
+        {
+          name: 'cleanTabTitle preserves original casing when preserveCase option is true',
+          fn: () => {
+            const raw = "Betrayed by the Hero, I Formed a MILF Party With His Mom! · Ch.39";
+            const displayTitle = TitleCleaner.cleanTabTitle(raw, "https://comix.to/title/123", true);
+            return displayTitle === "Betrayed by the Hero, I Formed a MILF Party With His Mom!";
+          }
+        },
+        {
+          name: 'cleanTabTitle cleans "Jujutsu Kaisen chapter 33" preserving casing with preserveCase',
+          fn: () => {
+            const raw = "Jujutsu Kaisen chapter 33";
+            const display = TitleCleaner.cleanTabTitle(raw, "", true);
+            const lower = TitleCleaner.cleanTabTitle(raw, "");
+            return display === "Jujutsu Kaisen" && lower === "jujutsu kaisen";
+          }
+        }
+      ];
+
+      renderGroup("6. 64-Bit Source ID Precision Tests", sourceTests);
+
+      // Final Summary
+      const summaryBox = document.createElement('div');
+      const allPassed = passedTests === totalTests;
+      summaryBox.className = `summary ${allPassed ? 'all-passed' : 'some-failed'}`;
+      summaryBox.textContent = `Test Results: ${passedTests} / ${totalTests} tests passed (${allPassed ? '100% SUCCESS' : 'FAILURES DETECTED'})`;
+      resultsContainer.prepend(summaryBox);
+    }
+
+    runProtobufTests();
+  </script>
+
+
+</body></html>
