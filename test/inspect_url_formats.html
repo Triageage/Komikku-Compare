@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head><script src="../lib/pako.min.js"></script></head>
+<body>
+<div id="output"></div>
+<script>
+function readVarintBigInt(bytes, offset) {
+  let value = 0n;
+  let shift = 0n;
+  const len = bytes.length;
+  while (offset < len) {
+    const b = BigInt(bytes[offset++]);
+    value |= (b & 0x7fn) << shift;
+    shift += 7n;
+    if ((b & 0x80n) === 0n) break;
+    if (shift > 64n) break;
+  }
+  return [value, offset];
+}
+
+async function run() {
+  const resp = await fetch('../app.komikku_2026-10-04_23-43.tachibk');
+  const buf = await resp.arrayBuffer();
+  const bytes = pako.ungzip(new Uint8Array(buf));
+  const textDecoder = new TextDecoder();
+  let offset = 0;
+  const len = bytes.length;
+  const sourcesMap = new Map(); // id -> name
+  const samplesBySource = new Map(); // id -> list of { title, url }
+
+  // First pass: sources
+  while (offset < len) {
+    const [tag, o1] = readVarintBigInt(bytes, offset);
+    offset = o1;
+    const fieldNum = Number(tag >> 3n);
+    const wireType = Number(tag & 7n);
+
+    if (wireType === 2) {
+      const [fLen, o2] = readVarintBigInt(bytes, offset);
+      offset = o2;
+      const fieldEnd = offset + Number(fLen);
+
+      if (fieldNum === 101) { // BackupSource
+        let sOffset = offset;
+        let sName = '';
+        let sId = '';
+        while (sOffset < fieldEnd) {
+          const [sTag, sO] = readVarintBigInt(bytes, sOffset);
+          sOffset = sO;
+          const sField = Number(sTag >> 3n);
+          const sWire = Number(sTag & 7n);
+          if (sWire === 2) {
+            const [sLen, sO2] = readVarintBigInt(bytes, sOffset);
+            sOffset = sO2;
+            const sEnd = sOffset + Number(sLen);
+            if (sField === 1) sName = textDecoder.decode(bytes.subarray(sOffset, sEnd));
+            sOffset = sEnd;
+          } else if (sWire === 0) {
+            const [val, sO2] = readVarintBigInt(bytes, sOffset);
+            sOffset = sO2;
+            if (sField === 2) sId = val.toString();
+          } else if (sWire === 1) sOffset += 8;
+          else if (sWire === 5) sOffset += 4;
+          else break;
+        }
+        if (sId) sourcesMap.set(sId, sName);
+      } else if (fieldNum === 1) { // BackupManga
+        let mOffset = offset;
+        let sId = '';
+        let url = '';
+        let title = '';
+        while (mOffset < fieldEnd) {
+          const [mTag, mO] = readVarintBigInt(bytes, mOffset);
+          mOffset = mO;
+          const mField = Number(mTag >> 3n);
+          const mWire = Number(mTag & 7n);
+          if (mWire === 0) {
+            const [val, mO2] = readVarintBigInt(bytes, mOffset);
+            mOffset = mO2;
+            if (mField === 1) sId = val.toString();
+          } else if (mWire === 2) {
+            const [sLen, mO2] = readVarintBigInt(bytes, mOffset);
+            mOffset = mO2;
+            const sEnd = mOffset + Number(sLen);
+            const str = textDecoder.decode(bytes.subarray(mOffset, sEnd));
+            if (mField === 2) url = str;
+            if (mField === 3) title = str;
+            mOffset = sEnd;
+          } else if (mWire === 1) mOffset += 8;
+          else if (mWire === 5) mOffset += 4;
+          else break;
+        }
+        if (sId && url) {
+          if (!samplesBySource.has(sId)) samplesBySource.set(sId, []);
+          const list = samplesBySource.get(sId);
+          if (list.length < 3) list.push({ title, url });
+        }
+      }
+      offset = fieldEnd;
+    } else if (wireType === 0) {
+      const [, o] = readVarintBigInt(bytes, offset);
+      offset = o;
+    } else if (wireType === 1) offset += 8;
+    else if (wireType === 5) offset += 4;
+    else break;
+  }
+
+  const result = [];
+  for (const [id, samples] of samplesBySource.entries()) {
+    const srcName = sourcesMap.get(id) || 'Unknown';
+    result.push({ sourceName: srcName, sourceId: id, samples });
+  }
+
+  document.getElementById('output').textContent = JSON.stringify(result, null, 2);
+}
+run();
+</script>
+</body>
+</html>

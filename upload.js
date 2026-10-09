@@ -88,6 +88,15 @@
         return;
       }
 
+      // Persist raw backup buffer to IndexedDB for export functionality
+      if (typeof BackupStorage !== 'undefined') {
+        try {
+          await BackupStorage.saveBackup(file, file.name);
+        } catch (storageErr) {
+          console.warn('BackupStorage save failed:', storageErr);
+        }
+      }
+
       // Persist to extension storage
       if (api.storage && api.storage.local) {
         await api.storage.local.set({

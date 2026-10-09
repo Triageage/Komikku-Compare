@@ -24,6 +24,10 @@ A high-performance Manifest V3 browser extension built specifically for **Zen Br
   - Groups missing manga by source domain (e.g. `mangakakalot.com`, `mangadex.org`).
   - One-click "Go to tab" button to instantly switch to and focus the tab.
   - Quick search filter and one-click "Copy" export formatted as Markdown.
+- **Close Found Tabs (Tab Hygiene)**:
+  - One-click button with two-step confirmation to close all selected tabs that are already in your Komikku library, leaving only the missing manga open.
+  - Individual close buttons next to each found item in the expandable "Manga in library" list.
+  - "Close All Checked Tabs" button in the celebration card when all selected manga are already in your library.
 
 ---
 

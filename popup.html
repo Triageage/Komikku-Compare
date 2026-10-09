@@ -135,6 +135,53 @@
           </div>
         </div>
 
+        <!-- Download Updated Backup Action Card -->
+        <div class="download-backup-card hidden" id="downloadBackupCard">
+          <div class="download-card-content">
+            <div class="download-card-header">
+              <div class="download-card-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+              </div>
+              <div class="download-card-info">
+                <span class="download-card-title">Add Selected to .tachibk</span>
+                <span class="download-card-subtitle">Choose manga to add (<strong id="downloadSelectedCount">0</strong> of <strong id="downloadTotalMissingCount">0</strong> selected)</span>
+              </div>
+            </div>
+            <button type="button" class="btn-download" id="downloadBackupBtn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="download-icon">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span id="downloadBackupBtnText">Download Updated .tachibk</span>
+            </button>
+          </div>
+
+          <!-- Post-Download Instructions Banner -->
+          <div class="download-instructions hidden" id="downloadInstructions">
+            <div class="instruction-badge">✓ Download Complete</div>
+            <div class="instruction-title">How to restore in Komikku:</div>
+            <ol class="instruction-steps">
+              <li>Send or transfer the downloaded <code class="code-tag">.tachibk</code> file to your phone.</li>
+              <li>In <strong>Komikku</strong>: Open <strong>More → Data and storage → Restore backup</strong>.</li>
+              <li>Select this file. All new manga will be directly added to your Library!</li>
+            </ol>
+            <div class="instruction-actions">
+              <button type="button" class="btn-secondary btn-sm" id="closeExportedTabsBtn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+                <span id="closeExportedTabsBtnText">Close Exported Tabs</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Quick Filters & Export Toolbar -->
         <div class="results-toolbar">
           <div class="search-box">
@@ -144,6 +191,12 @@
             </svg>
             <input type="text" id="filterInput" placeholder="Filter missing manga..." />
           </div>
+          <button type="button" class="btn-secondary btn-sm" id="toggleSelectAllBtn" title="Toggle select or deselect all missing manga">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <span id="toggleSelectAllText">Deselect All</span>
+          </button>
           <button type="button" class="btn-secondary btn-sm" id="copyBtn" title="Copy missing manga list">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -163,16 +216,32 @@
           <div class="all-found-icon">🎉</div>
           <h3>All Caught Up!</h3>
           <p>Every selected manga is already in your Komikku library.</p>
+          <button type="button" class="btn-danger btn-sm" id="closeAllFoundStateBtn" style="margin-top: 10px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+            <span id="closeAllFoundStateText">Close All Checked Tabs</span>
+          </button>
         </div>
 
-        <!-- Found Manga Collapsible Area (Transparency) -->
+        <!-- Found Manga Collapsible Area (Transparency & Tab Hygiene) -->
         <div class="found-collapsible hidden" id="foundCollapsible">
-          <button type="button" class="found-toggle-btn" id="foundToggleBtn">
-            <span>Manga already in library (<span id="foundToggleCount">0</span>)</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="foundToggleArrow">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </button>
+          <div class="found-header-row">
+            <button type="button" class="found-toggle-btn" id="foundToggleBtn">
+              <span>Manga in library (<span id="foundToggleCount">0</span>)</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="foundToggleArrow">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <button type="button" class="btn-danger btn-sm" id="closeFoundTabsBtn" title="Close selected tabs that are already in your library">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+              <span id="closeFoundBtnText">Close Found Tabs</span>
+            </button>
+          </div>
           <div class="found-list-container hidden" id="foundListContainer">
             <!-- Populated via JS -->
           </div>
@@ -189,6 +258,7 @@
 
   <!-- Scripts: bundled Pako, helper modules, and popup orchestrator -->
   <script src="lib/pako.min.js"></script>
+  <script src="lib/backup-storage.js"></script>
   <script src="lib/backup-parser.js"></script>
   <script src="lib/title-cleaner.js"></script>
   <script src="lib/matcher.js"></script>
