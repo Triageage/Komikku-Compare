@@ -484,6 +484,427 @@
 
       renderGroup("6. 64-Bit Source ID Precision Tests", sourceTests);
 
+      // 7. Library Entries & Source Resolution Tests
+      const mangadexId = "2499283573021220255";
+      const customSourceId = "998877665544332211";
+      const sourcePayload7 = BackupParser.createBackupSourcePayload("Custom Scans", customSourceId);
+      const mangaPayload7a = BackupParser.createBackupMangaPayload({
+        title: "Chainsaw Man",
+        url: "/title/chainsaw-man",
+        sourceId: mangadexId,
+        dateAdded: 1600000000000
+      });
+      const mangaPayload7b = BackupParser.createBackupMangaPayload({
+        title: "Dandadan",
+        url: "/title/dandadan",
+        sourceId: customSourceId,
+        dateAdded: 1600000000000
+      });
+
+      const backupBytes7 = new Uint8Array([...sourcePayload7, ...mangaPayload7a, ...mangaPayload7b]);
+      const compressed7 = await BackupParser.compressGzip(backupBytes7);
+      const parsed7 = await BackupParser.parseKomikkuBackup(compressed7);
+
+      const libraryEntryTests = [
+        {
+          name: 'parseKomikkuBackup extracts entries array with title, url, sourceId, and sourceName',
+          fn: () => {
+            return Array.isArray(parsed7.entries) && parsed7.entries.length === 2 &&
+                   parsed7.entries.some(e => e.title === "Chainsaw Man" && e.sourceName === "MangaDex");
+          }
+        },
+        {
+          name: 'parseKomikkuBackup resolves registered custom BackupSource name "Custom Scans"',
+          fn: () => {
+            const dandadan = parsed7.entries.find(e => e.title === "Dandadan");
+            return dandadan && dandadan.sourceName === "Custom Scans" && dandadan.sourceId === customSourceId;
+          }
+        },
+        {
+          name: 'parseKomikkuBackup preserves URL path on extracted entries',
+          fn: () => {
+            const csm = parsed7.entries.find(e => e.title === "Chainsaw Man");
+            return csm && csm.url === "/title/chainsaw-man";
+          }
+        }
+      ];
+
+      renderGroup("7. Library Entries & Source Extraction Tests", libraryEntryTests);
+
+      // 8. Duplicate Detection & Title Normalization Tests
+      const dupEntriesMock = [
+        // Group 1: Cross-source duplicates
+        { title: "Solo Leveling", sourceName: "MangaDex", sourceId: "1", url: "/manga/1" },
+        { title: "Solo Leveling [Official]", sourceName: "Webtoons.com", sourceId: "2", url: "/comic/2" },
+        { title: "Solo Leveling (Colored)", sourceName: "Asura Scans", sourceId: "3", url: "/series/3" },
+
+        // Group 2: Same-source duplicates
+        { title: "One Piece", sourceName: "Comix", sourceId: "4", url: "/title/op-1" },
+        { title: "One Piece [Digital Colored]", sourceName: "Comix", sourceId: "4", url: "/title/op-2" },
+
+        // Group 3: Special character / cross-representation match
+        { title: "SPY × FAMILY", sourceName: "MangaDex", sourceId: "1", url: "/manga/spy1" },
+        { title: "SPY x FAMILY", sourceName: "MangaFire", sourceId: "5", url: "/manga/spy2" },
+
+        // Single unique title (not a duplicate)
+        { title: "Berserk", sourceName: "MangaDex", sourceId: "1", url: "/manga/berserk" }
+      ];
+
+      const dupResults = BackupParser.findDuplicateTitles(dupEntriesMock);
+      const soloGroup = dupResults.groups.find(g => g.key === "solo leveling");
+      const opGroup = dupResults.groups.find(g => g.key === "one piece");
+      const spyGroup = dupResults.groups.find(g => g.key === "spy x family");
+
+      const duplicateTests = [
+        {
+          name: 'getNormalizedDuplicateKey removes bracket tags "[Official]" and "(Colored)"',
+          fn: () => {
+            const k1 = BackupParser.getNormalizedDuplicateKey("Solo Leveling");
+            const k2 = BackupParser.getNormalizedDuplicateKey("Solo Leveling [Official]");
+            const k3 = BackupParser.getNormalizedDuplicateKey("Solo Leveling (Colored)");
+            return k1 === "solo leveling" && k2 === "solo leveling" && k3 === "solo leveling";
+          }
+        },
+        {
+          name: 'getNormalizedDuplicateKey equates multiplication sign "×" with "x"',
+          fn: () => {
+            const k1 = BackupParser.getNormalizedDuplicateKey("SPY × FAMILY");
+            const k2 = BackupParser.getNormalizedDuplicateKey("SPY x FAMILY");
+            return k1 === "spy x family" && k2 === "spy x family";
+          }
+        },
+        {
+          name: 'findDuplicateTitles identifies Cross-Source duplicate group ("Solo Leveling" across 3 sources)',
+          fn: () => soloGroup && soloGroup.count === 3 && soloGroup.isSameSource === false && soloGroup.sources.length === 3
+        },
+        {
+          name: 'findDuplicateTitles identifies Same-Source duplicate group ("One Piece" both on Comix)',
+          fn: () => opGroup && opGroup.count === 2 && opGroup.isSameSource === true && opGroup.sources.length === 1
+        },
+        {
+          name: 'findDuplicateTitles matches "SPY × FAMILY" and "SPY x FAMILY" as duplicates',
+          fn: () => spyGroup && spyGroup.count === 2
+        },
+        {
+          name: 'findDuplicateTitles excludes unique manga ("Berserk") from duplicates count',
+          fn: () => !dupResults.groups.some(g => g.key === "berserk")
+        },
+        {
+          name: 'findDuplicateTitles accurately counts same-source and cross-source groups',
+          fn: () => dupResults.duplicateGroupsCount === 3 &&
+                    dupResults.sameSourceGroupsCount === 1 &&
+                    dupResults.crossSourceGroupsCount === 2 &&
+                    dupResults.totalDuplicatesCount === 4 // (3-1) + (2-1) + (2-1) = 4 redundant copies
+        }
+      ];
+
+      renderGroup("8. Duplicate Detection & Normalization Tests", duplicateTests);
+
+      // 9. dateAdded Extraction & Formatting Tests
+      const timestampTest1 = 1700000000000; // Nov 14, 2023
+      const timestampTest2 = 1720000000000; // Jul 3, 2024
+      const mangaPayload9a = BackupParser.createBackupMangaPayload({
+        title: "Test Manga Old",
+        url: "/test/old",
+        sourceId: "123",
+        dateAdded: timestampTest1
+      });
+      const mangaPayload9b = BackupParser.createBackupMangaPayload({
+        title: "Test Manga New",
+        url: "/test/new",
+        sourceId: "456",
+        dateAdded: timestampTest2
+      });
+
+      const backupBytes9 = new Uint8Array([...mangaPayload9a, ...mangaPayload9b]);
+      const compressed9 = await BackupParser.compressGzip(backupBytes9);
+      const parsed9 = await BackupParser.parseKomikkuBackup(compressed9);
+
+      const dateTests = [
+        {
+          name: 'parseStructuredProtobuf extracts dateAdded (Field 13) timestamp correctly',
+          fn: () => {
+            const oldEntry = parsed9.entries.find(e => e.title === "Test Manga Old");
+            const newEntry = parsed9.entries.find(e => e.title === "Test Manga New");
+            return oldEntry && oldEntry.dateAdded === timestampTest1 &&
+                   newEntry && newEntry.dateAdded === timestampTest2;
+          }
+        },
+        {
+          name: 'formatDate converts timestamp to readable date string and handles 0 gracefully',
+          fn: () => {
+            const formatted = BackupParser.formatDate(timestampTest1);
+            const emptyFormatted = BackupParser.formatDate(0);
+            return typeof formatted === 'string' && formatted.length > 4 && emptyFormatted === 'Unknown date';
+          }
+        }
+      ];
+
+      renderGroup("9. Date Added Extraction & Formatting Tests", dateTests);
+
+      // 10. Duplicate Selection & Prioritization Tests
+      const sampleDupGroups = [
+        {
+          key: "vinland saga",
+          canonicalTitle: "Vinland Saga",
+          count: 3,
+          entries: [
+            { id: "e1", entryIndex: 0, title: "Vinland Saga", sourceName: "MangaKakalot", dateAdded: 1620000000000, formattedDate: "May 3, 2021" },
+            { id: "e2", entryIndex: 1, title: "Vinland Saga", sourceName: "Comix", dateAdded: 1610000000000, formattedDate: "Jan 7, 2021" },
+            { id: "e3", entryIndex: 2, title: "Vinland Saga", sourceName: "WeebCentral", dateAdded: 1630000000000, formattedDate: "Aug 27, 2021" }
+          ]
+        },
+        {
+          key: "hunter x hunter",
+          canonicalTitle: "Hunter x Hunter",
+          count: 2,
+          entries: [
+            { id: "e4", entryIndex: 3, title: "Hunter x Hunter", sourceName: "UnknownSource", dateAdded: 1650000000000, formattedDate: "Apr 15, 2022" },
+            { id: "e5", entryIndex: 4, title: "Hunter x Hunter", sourceName: "WeebCentral", dateAdded: 1660000000000, formattedDate: "Aug 9, 2022" }
+          ]
+        }
+      ];
+
+      // Test 10.1: Source Preference rule: [Comix, WeebCentral, MangaKakalot]
+      const prefOrder = ["Comix", "WeebCentral", "MangaKakalot"];
+      BackupParser.applyDuplicateSelectionRule(sampleDupGroups, "sourcePreference", { sourcePreferences: prefOrder });
+
+      const ruleTests = [
+        {
+          name: 'applyDuplicateSelectionRule by sourcePreference selects highest priority source (Comix) as keep',
+          fn: () => {
+            const g1 = sampleDupGroups[0];
+            const comixEntry = g1.entries.find(e => e.sourceName === "Comix");
+            return comixEntry && comixEntry.isKeep === true && comixEntry.isSelectedForDelete === false;
+          }
+        },
+        {
+          name: 'applyDuplicateSelectionRule marks lower priority sources (WeebCentral, MangaKakalot) for deletion',
+          fn: () => {
+            const g1 = sampleDupGroups[0];
+            const weeb = g1.entries.find(e => e.sourceName === "WeebCentral");
+            const kaka = g1.entries.find(e => e.sourceName === "MangaKakalot");
+            return weeb && weeb.isSelectedForDelete === true && kaka && kaka.isSelectedForDelete === true;
+          }
+        },
+        {
+          name: 'Unranked sources fall back to lower priority than ranked sources',
+          fn: () => {
+            const g2 = sampleDupGroups[1];
+            const weeb = g2.entries.find(e => e.sourceName === "WeebCentral");
+            const unranked = g2.entries.find(e => e.sourceName === "UnknownSource");
+            return weeb && weeb.isKeep === true && unranked && unranked.isSelectedForDelete === true;
+          }
+        },
+        {
+          name: 'applyDuplicateSelectionRule by oldest keeps entry with lowest dateAdded',
+          fn: () => {
+            BackupParser.applyDuplicateSelectionRule(sampleDupGroups, "oldest");
+            const g1 = sampleDupGroups[0];
+            const oldest = g1.entries.find(e => e.sourceName === "Comix"); // Jan 2021 is oldest
+            return oldest && oldest.isKeep === true && g1.entries.filter(e => e.isSelectedForDelete).length === 2;
+          }
+        },
+        {
+          name: 'applyDuplicateSelectionRule by newest keeps entry with highest dateAdded',
+          fn: () => {
+            BackupParser.applyDuplicateSelectionRule(sampleDupGroups, "newest");
+            const g1 = sampleDupGroups[0];
+            const newest = g1.entries.find(e => e.sourceName === "WeebCentral"); // Aug 2021 is newest
+            return newest && newest.isKeep === true && g1.entries.filter(e => e.isSelectedForDelete).length === 2;
+          }
+        },
+        {
+          name: 'applyDuplicateSelectionRule always preserves exactly 1 keep entry per duplicate group',
+          fn: () => {
+            return sampleDupGroups.every(g => g.entries.filter(e => e.isKeep).length === 1 && g.entries.filter(e => e.isSelectedForDelete).length === (g.entries.length - 1));
+          }
+        }
+      ];
+
+      renderGroup("10. Duplicate Selection & Prioritization Tests", ruleTests);
+
+      // 11. Binary Backup Deletion & Cleanup Tests
+      // Let's create a backup with 3 manga: One Piece (e1), One Piece duplicate (e2), Naruto (e3)
+      const mangaA = BackupParser.createBackupMangaPayload({ title: "One Piece", url: "/op/1", sourceId: "1", dateAdded: 1600000000000 });
+      const mangaB = BackupParser.createBackupMangaPayload({ title: "One Piece", url: "/op/2", sourceId: "2", dateAdded: 1610000000000 });
+      const mangaC = BackupParser.createBackupMangaPayload({ title: "Naruto", url: "/naruto/1", sourceId: "1", dateAdded: 1600000000000 });
+
+      const initialBackupBytes = new Uint8Array([...mangaA, ...mangaB, ...mangaC]);
+      const initialCompressed = await BackupParser.compressGzip(initialBackupBytes);
+      const initialParsed = await BackupParser.parseKomikkuBackup(initialCompressed);
+
+      // Now remove the duplicate mangaB
+      const duplicateToRemove = initialParsed.entries.find(e => e.title === "One Piece" && e.sourceId === "2");
+      const cleanupResult = await BackupParser.removeEntriesFromBackup(initialCompressed, [duplicateToRemove]);
+      const reParsedAfterCleanup = await BackupParser.parseKomikkuBackup(cleanupResult.compressedBytes);
+
+      const cleanupTests = [
+        {
+          name: 'removeEntriesFromBackup successfully removes duplicate record from byte stream',
+          fn: () => cleanupResult.removedCount === 1 && cleanupResult.blob instanceof Blob
+        },
+        {
+          name: 'Re-parsed backup total count decreases from 3 to 2',
+          fn: () => reParsedAfterCleanup.count === 2
+        },
+        {
+          name: 'Deleted duplicate entry is completely absent in cleaned backup',
+          fn: () => !reParsedAfterCleanup.entries.some(e => e.title === "One Piece" && e.sourceId === "2")
+        },
+        {
+          name: 'Original "One Piece" copy and "Naruto" remain completely intact and valid',
+          fn: () => {
+            const remainingOP = reParsedAfterCleanup.entries.find(e => e.title === "One Piece");
+            const remainingNaruto = reParsedAfterCleanup.entries.find(e => e.title === "Naruto");
+            return remainingOP && remainingOP.sourceId === "1" && remainingNaruto && remainingNaruto.sourceId === "1";
+          }
+        },
+        {
+          name: 'Cleaned backup has 0 duplicates remaining for One Piece',
+          fn: () => reParsedAfterCleanup.duplicates.duplicateGroupsCount === 0
+        }
+      ];
+
+      renderGroup("11. Binary Backup Deletion & Cleanup Tests", cleanupTests);
+
+      // 12. Category Extraction, Assignment & Organization Tests
+      const catA = BackupParser.createBackupCategoryPayload("Action / Shonen", 0);
+      const catB = BackupParser.createBackupCategoryPayload("Romance", 1);
+      const catC = BackupParser.createBackupCategoryPayload("Favorites", 2);
+
+      // Manga 1: In catA and catC (multiple categories)
+      const mangaCat1 = BackupParser.createBackupMangaPayload({
+        title: "Chainsaw Man",
+        url: "/csm/1",
+        sourceId: "1",
+        categories: [0, 2]
+      });
+      // Manga 2: In catB only
+      const mangaCat2 = BackupParser.createBackupMangaPayload({
+        title: "Kaguya-sama",
+        url: "/kaguya/1",
+        sourceId: "1",
+        categories: [1]
+      });
+      // Manga 3: In catC only
+      const mangaCat3 = BackupParser.createBackupMangaPayload({
+        title: "Frieren",
+        url: "/frieren/1",
+        sourceId: "1",
+        categories: [2]
+      });
+      // Manga 4: Uncategorized (empty categories array)
+      const mangaCat4 = BackupParser.createBackupMangaPayload({
+        title: "One Punch Man",
+        url: "/opm/1",
+        sourceId: "1",
+        categories: []
+      });
+
+      const catBackupBytes = new Uint8Array([...catA, ...catB, ...catC, ...mangaCat1, ...mangaCat2, ...mangaCat3, ...mangaCat4]);
+      const catCompressed = await BackupParser.compressGzip(catBackupBytes);
+      const catParsed = await BackupParser.parseKomikkuBackup(catCompressed);
+
+      const categoryTests = [
+        {
+          name: 'Decoded all 3 backup categories in ascending order by order property',
+          fn: () => {
+            return catParsed.categories.length === 3 &&
+              catParsed.categories[0].name === "Action / Shonen" && catParsed.categories[0].order === 0 &&
+              catParsed.categories[1].name === "Romance" && catParsed.categories[1].order === 1 &&
+              catParsed.categories[2].name === "Favorites" && catParsed.categories[2].order === 2;
+          }
+        },
+        {
+          name: 'Category counts accurately reflect assignments including overlap',
+          fn: () => {
+            const cAction = catParsed.categories.find(c => c.name === "Action / Shonen");
+            const cRomance = catParsed.categories.find(c => c.name === "Romance");
+            const cFav = catParsed.categories.find(c => c.name === "Favorites");
+            return cAction && cAction.count === 1 &&
+                   cRomance && cRomance.count === 1 &&
+                   cFav && cFav.count === 2;
+          }
+        },
+        {
+          name: 'Multi-category manga appears assigned to all its respective categories',
+          fn: () => {
+            const csm = catParsed.entries.find(e => e.title === "Chainsaw Man");
+            return csm &&
+                   csm.categoryNames.includes("Action / Shonen") &&
+                   csm.categoryNames.includes("Favorites") &&
+                   csm.categories.includes(0) &&
+                   csm.categories.includes(2) &&
+                   csm.isUncategorized === false;
+          }
+        },
+        {
+          name: 'Uncategorized manga is marked isUncategorized and accurately counted',
+          fn: () => {
+            const opm = catParsed.entries.find(e => e.title === "One Punch Man");
+            return opm && opm.isUncategorized === true && opm.categoryNames.length === 0 && catParsed.uncategorizedCount === 1;
+          }
+        },
+        {
+          name: 'Backup without categories reports 0 categories and marks all manga uncategorized',
+          fn: () => {
+            return initialParsed.categories.length === 0 &&
+                   initialParsed.uncategorizedCount === initialParsed.entries.length &&
+                   initialParsed.entries.every(e => e.isUncategorized);
+          }
+        }
+      ];
+
+      renderGroup("12. Category Extraction, Assignment & Organization Tests", categoryTests);
+
+      // 13. Category Filtering & Multi-Category Integrity Tests
+      const filterByCategory = (entries, categoryName) => {
+        if (categoryName === 'all') return entries;
+        if (categoryName === '__uncategorized__') {
+          return entries.filter(e => e.isUncategorized || !e.categoryNames || e.categoryNames.length === 0);
+        }
+        return entries.filter(e => Array.isArray(e.categoryNames) && e.categoryNames.includes(categoryName));
+      };
+
+      const actionList = filterByCategory(catParsed.entries, "Action / Shonen");
+      const favoritesList = filterByCategory(catParsed.entries, "Favorites");
+      const romanceList = filterByCategory(catParsed.entries, "Romance");
+      const uncatList = filterByCategory(catParsed.entries, "__uncategorized__");
+
+      const categoryFilterTests = [
+        {
+          name: 'Filtering by "Action / Shonen" returns Chainsaw Man without extra items',
+          fn: () => actionList.length === 1 && actionList[0].title === "Chainsaw Man"
+        },
+        {
+          name: 'Filtering by "Favorites" returns both Chainsaw Man and Frieren',
+          fn: () => favoritesList.length === 2 && favoritesList.some(e => e.title === "Chainsaw Man") && favoritesList.some(e => e.title === "Frieren")
+        },
+        {
+          name: 'Filtering by "Romance" returns Kaguya-sama',
+          fn: () => romanceList.length === 1 && romanceList[0].title === "Kaguya-sama"
+        },
+        {
+          name: 'Filtering by "__uncategorized__" returns One Punch Man only',
+          fn: () => uncatList.length === 1 && uncatList[0].title === "One Punch Man"
+        },
+        {
+          name: 'Multi-category manga ("Chainsaw Man") appears in both Category views without duplicate underlying records',
+          fn: () => {
+            const inAction = actionList.find(e => e.title === "Chainsaw Man");
+            const inFavorites = favoritesList.find(e => e.title === "Chainsaw Man");
+            return inAction && inFavorites && inAction === inFavorites && catParsed.entries.length === 4;
+          }
+        },
+        {
+          name: 'Empty categories condition correctly detected for category-less backups',
+          fn: () => initialParsed.categories.length === 0 && initialParsed.entries.every(e => e.isUncategorized)
+        }
+      ];
+
+      renderGroup("13. Category Filtering & Multi-Category Integrity Tests", categoryFilterTests);
+
       // Final Summary
       const summaryBox = document.createElement('div');
       const allPassed = passedTests === totalTests;

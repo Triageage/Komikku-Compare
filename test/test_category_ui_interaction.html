@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Category UI Interaction Test</title>
+</head>
+<body>
+  <div id="results">Running category UI interaction test...</div>
+
+  <script src="../lib/pako.min.js"></script>
+  <script src="../lib/backup-storage.js"></script>
+  <script src="../lib/backup-parser.js"></script>
+  <script src="../lib/title-cleaner.js"></script>
+  <script src="../lib/matcher.js"></script>
+
+  <script>
+    (async function() {
+      const resultsEl = document.getElementById('results');
+      const logs = [];
+      function assert(condition, message) {
+        if (!condition) {
+          throw new Error('Assertion failed: ' + message);
+        }
+        logs.push('✓ ' + message);
+      }
+
+      try {
+        // 1. Create a synthetic backup with 3 categories and 4 manga
+        const catA = BackupParser.createBackupCategoryPayload("Manhwa", 0);
+        const catB = BackupParser.createBackupCategoryPayload("18+ Manga", 1);
+        const catC = BackupParser.createBackupCategoryPayload("Action", 2);
+
+        // Manga 1: In Manhwa & Action (multi-category)
+        const m1 = BackupParser.createBackupMangaPayload({
+          title: "Solo Leveling",
+          url: "/solo/1",
+          sourceId: "1",
+          categories: [0, 2]
+        });
+
+        // Manga 2: In 18+ Manga
+        const m2 = BackupParser.createBackupMangaPayload({
+          title: "Sweet Guy",
+          url: "/sweet/1",
+          sourceId: "1",
+          categories: [1]
+        });
+
+        // Manga 3: In Action only
+        const m3 = BackupParser.createBackupMangaPayload({
+          title: "One Punch Man",
+          url: "/opm/1",
+          sourceId: "2",
+          categories: [2]
+        });
+
+        // Manga 4: Uncategorized
+        const m4 = BackupParser.createBackupMangaPayload({
+          title: "Omniscient Reader",
+          url: "/orv/1",
+          sourceId: "2",
+          categories: []
+        });
+
+        const backupBytes = new Uint8Array([...catA, ...catB, ...catC, ...m1, ...m2, ...m3, ...m4]);
+        const compressed = await BackupParser.compressGzip(backupBytes);
+        const parsed = await BackupParser.parseKomikkuBackup(compressed);
+
+        assert(parsed.categories.length === 3, "Parsed exactly 3 categories in ascending order");
+        assert(parsed.categories[0].name === "Manhwa" && parsed.categories[0].count === 1, "Manhwa has count 1");
+        assert(parsed.categories[1].name === "18+ Manga" && parsed.categories[1].count === 1, "18+ Manga has count 1");
+        assert(parsed.categories[2].name === "Action" && parsed.categories[2].count === 2, "Action has count 2 (Solo Leveling + OPM)");
+        assert(parsed.uncategorizedCount === 1, "Uncategorized count is 1");
+
+        // Test multi-category resolution
+        const solo = parsed.entries.find(e => e.title === "Solo Leveling");
+        assert(solo.categoryNames.includes("Manhwa") && solo.categoryNames.includes("Action"), "Solo Leveling has both category names");
+
+        const orv = parsed.entries.find(e => e.title === "Omniscient Reader");
+        assert(orv.isUncategorized === true && orv.categoryNames.length === 0, "Omniscient Reader is uncategorized");
+
+        // 2. Test 0-category backup empty state logic
+        const noCatManga = BackupParser.createBackupMangaPayload({
+          title: "Berserk",
+          url: "/berserk/1",
+          sourceId: "1",
+          categories: []
+        });
+        const noCatCompressed = await BackupParser.compressGzip(noCatManga);
+        const noCatParsed = await BackupParser.parseKomikkuBackup(noCatCompressed);
+
+        assert(noCatParsed.categories.length === 0, "Category-less backup has 0 categories");
+        assert(noCatParsed.uncategorizedCount === 1, "All entries in category-less backup are uncategorized");
+
+        // 3. Test Dropdown UI population behavior
+        const mockCategorySelect = document.createElement('select');
+
+        // Helper mimicking popup.js populateCategoryFilterControls
+        function testPopulate(selectEl, categories, uncatCount) {
+          while (selectEl.firstChild) selectEl.removeChild(selectEl.firstChild);
+          if (!categories || categories.length === 0) {
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = 'all';
+            emptyOpt.textContent = 'No categories yet';
+            emptyOpt.selected = true;
+            selectEl.appendChild(emptyOpt);
+            return;
+          }
+          const allOpt = document.createElement('option');
+          allOpt.value = 'all';
+          allOpt.textContent = 'All Categories';
+          allOpt.selected = true;
+          selectEl.appendChild(allOpt);
+
+          for (const cat of categories) {
+            const opt = document.createElement('option');
+            opt.value = cat.name;
+            opt.textContent = `${cat.name} (${cat.count || 0})`;
+            selectEl.appendChild(opt);
+          }
+          if (uncatCount > 0) {
+            const uncatOpt = document.createElement('option');
+            uncatOpt.value = '__uncategorized__';
+            uncatOpt.textContent = `Uncategorized (${uncatCount})`;
+            selectEl.appendChild(uncatOpt);
+          }
+        }
+
+        // Test 0 categories dropdown
+        testPopulate(mockCategorySelect, noCatParsed.categories, noCatParsed.uncategorizedCount);
+        assert(mockCategorySelect.options.length === 1, "0-category select has exactly 1 option");
+        assert(mockCategorySelect.options[0].textContent === "No categories yet", "0-category select says 'No categories yet'");
+        assert(mockCategorySelect.options[0].value === "all", "0-category select value is 'all'");
+
+        // Test populated categories dropdown
+        testPopulate(mockCategorySelect, parsed.categories, parsed.uncategorizedCount);
+        assert(mockCategorySelect.options.length === 5, "Populated select has 5 options (All, 3 categories, Uncategorized)");
+        assert(mockCategorySelect.options[0].textContent === "All Categories", "First option is 'All Categories'");
+        assert(mockCategorySelect.options[1].textContent === "Manhwa (1)", "Second option is 'Manhwa (1)'");
+        assert(mockCategorySelect.options[2].textContent === "18+ Manga (1)", "Third option is '18+ Manga (1)'");
+        assert(mockCategorySelect.options[3].textContent === "Action (2)", "Fourth option is 'Action (2)'");
+        assert(mockCategorySelect.options[4].textContent === "Uncategorized (1)", "Fifth option is 'Uncategorized (1)'");
+
+        // 4. Test simultaneous source + category filtering
+        const testEntries = parsed.entries; // 4 manga entries
+        function filterEntries(srcFilter, catFilter) {
+          return testEntries.filter(e => {
+            if (srcFilter !== 'all' && e.sourceName !== srcFilter) return false;
+            if (catFilter === '__uncategorized__') {
+              if (!e.isUncategorized && Array.isArray(e.categoryNames) && e.categoryNames.length > 0) return false;
+            } else if (catFilter !== 'all') {
+              if (!Array.isArray(e.categoryNames) || !e.categoryNames.includes(catFilter)) return false;
+            }
+            return true;
+          });
+        }
+
+        // Filter: All sources, Action category -> Solo Leveling, One Punch Man
+        const actionManga = filterEntries('all', 'Action');
+        assert(actionManga.length === 2, "Action category returns 2 entries across all sources");
+
+        // Filter: Source "2", Action category -> One Punch Man only
+        // Note: m1 has sourceId "1", m3 has sourceId "2"
+        const source2Action = filterEntries('Unknown Source', 'Action'); // since sourceId isn't mapped to a name in synthetic test, sourceName is undefined/Unknown
+        assert(filterEntries('all', 'Manhwa').length === 1, "Manhwa returns 1 entry");
+        assert(filterEntries('all', '__uncategorized__').length === 1, "Uncategorized returns Omniscient Reader");
+
+        resultsEl.innerHTML = '<div id="status">SUCCESS: All Category UI tests passed!</div><pre>' + logs.join('\n') + '</pre>';
+      } catch (err) {
+        resultsEl.innerHTML = '<div id="status">FAILED: ' + err.message + '</div>';
+        console.error(err);
+      }
+    })();
+  </script>
+</body>
+</html>

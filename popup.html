@@ -39,6 +39,26 @@
       </div>
     </header>
 
+    <!-- Navigation Tabs -->
+    <nav class="view-nav-tabs">
+      <button type="button" class="view-nav-btn active" id="tabNavCompare">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+        </svg>
+        <span>Compare Tabs</span>
+      </button>
+      <button type="button" class="view-nav-btn" id="tabNavLibrary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"></path>
+          <path d="M6 6h10"></path>
+          <path d="M6 10h10"></path>
+        </svg>
+        <span>Library & Duplicates</span>
+        <span class="nav-badge-dup hidden" id="navDupBadge">0</span>
+      </button>
+    </nav>
+
     <!-- Main Content -->
     <main class="app-main">
       <!-- Backup Upload Section -->
@@ -81,178 +101,443 @@
         </div>
       </section>
 
-      <!-- Action & Tab Selection Section -->
-      <section class="card action-card">
-        <div class="tab-status-row">
-          <div class="tab-count-indicator">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
-              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-            </svg>
-            <span id="selectedTabsCountLabel">Scanning tabs...</span>
+      <!-- Compare Tabs View Container -->
+      <div id="compareViewContainer">
+        <!-- Action & Tab Selection Section -->
+        <section class="card action-card">
+          <div class="tab-status-row">
+            <div class="tab-count-indicator">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+              </svg>
+              <span id="selectedTabsCountLabel">Scanning tabs...</span>
+            </div>
+            <button type="button" class="btn-refresh" id="refreshTabsBtn" title="Refresh tab counts">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"></path>
+              </svg>
+            </button>
           </div>
-          <button type="button" class="btn-refresh" id="refreshTabsBtn" title="Refresh tab counts">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"></path>
-            </svg>
-          </button>
-        </div>
 
-        <!-- Friendly Reminder Notice for Single Tab / No Multi-Selection -->
-        <div class="multi-select-notice hidden" id="multiSelectNotice">
-          <div class="notice-icon">💡</div>
-          <div class="notice-body">
-            <strong>Pro Tip:</strong> Only 1 tab is highlighted. In Zen Browser, hold <kbd>Ctrl</kbd> (or <kbd>Cmd</kbd>) or <kbd>Shift</kbd> and click tabs to multi-select them before processing!
+          <!-- Friendly Reminder Notice for Single Tab / No Multi-Selection -->
+          <div class="multi-select-notice hidden" id="multiSelectNotice">
+            <div class="notice-icon">💡</div>
+            <div class="notice-body">
+              <strong>Pro Tip:</strong> Only 1 tab is highlighted. In Zen Browser, hold <kbd>Ctrl</kbd> (or <kbd>Cmd</kbd>) or <kbd>Shift</kbd> and click tabs to multi-select them before processing!
+            </div>
           </div>
-        </div>
 
-        <!-- Primary Action Button -->
-        <div class="action-buttons-row">
-          <button type="button" class="btn-primary" id="processBtn" disabled>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-            </svg>
-            <span>Process Selected Tabs</span>
-          </button>
-        </div>
-      </section>
+          <!-- Primary Action Button -->
+          <div class="action-buttons-row">
+            <button type="button" class="btn-primary" id="processBtn" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+              <span>Process Selected Tabs</span>
+            </button>
+          </div>
+        </section>
 
-      <!-- Results Section -->
-      <section class="results-section hidden" id="resultsSection">
-        <!-- Results Summary Bar -->
-        <div class="summary-metrics">
-          <div class="metric-pill">
-            <span class="metric-label">Checked</span>
-            <span class="metric-value" id="metricChecked">0</span>
+        <!-- Results Section -->
+        <section class="results-section hidden" id="resultsSection">
+          <!-- Results Summary Bar -->
+          <div class="summary-metrics">
+            <div class="metric-pill">
+              <span class="metric-label">Checked</span>
+              <span class="metric-value" id="metricChecked">0</span>
+            </div>
+            <div class="metric-pill metric-success">
+              <span class="metric-label">In Library</span>
+              <span class="metric-value" id="metricInLibrary">0</span>
+            </div>
+            <div class="metric-pill metric-highlight">
+              <span class="metric-label">Missing</span>
+              <span class="metric-value" id="metricMissing">0</span>
+            </div>
           </div>
-          <div class="metric-pill metric-success">
-            <span class="metric-label">In Library</span>
-            <span class="metric-value" id="metricInLibrary">0</span>
-          </div>
-          <div class="metric-pill metric-highlight">
-            <span class="metric-label">Missing</span>
-            <span class="metric-value" id="metricMissing">0</span>
-          </div>
-        </div>
 
-        <!-- Download Updated Backup Action Card -->
-        <div class="download-backup-card hidden" id="downloadBackupCard">
-          <div class="download-card-content">
-            <div class="download-card-header">
-              <div class="download-card-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <!-- Download Updated Backup Action Card -->
+          <div class="download-backup-card hidden" id="downloadBackupCard">
+            <div class="download-card-content">
+              <div class="download-card-header">
+                <div class="download-card-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                </div>
+                <div class="download-card-info">
+                  <span class="download-card-title">Add Selected to .tachibk</span>
+                  <span class="download-card-subtitle">Choose manga to add (<strong id="downloadSelectedCount">0</strong> of <strong id="downloadTotalMissingCount">0</strong> selected)</span>
+                </div>
+              </div>
+              <button type="button" class="btn-download" id="downloadBackupBtn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="download-icon">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="7 10 12 15 17 10"></polyline>
                   <line x1="12" y1="15" x2="12" y2="3"></line>
                 </svg>
-              </div>
-              <div class="download-card-info">
-                <span class="download-card-title">Add Selected to .tachibk</span>
-                <span class="download-card-subtitle">Choose manga to add (<strong id="downloadSelectedCount">0</strong> of <strong id="downloadTotalMissingCount">0</strong> selected)</span>
+                <span id="downloadBackupBtnText">Download Updated .tachibk</span>
+              </button>
+            </div>
+
+            <!-- Post-Download Instructions Banner -->
+            <div class="download-instructions hidden" id="downloadInstructions">
+              <div class="instruction-badge">✓ Download Complete</div>
+              <div class="instruction-title">How to restore in Komikku:</div>
+              <ol class="instruction-steps">
+                <li>Send or transfer the downloaded <code class="code-tag">.tachibk</code> file to your phone.</li>
+                <li>In <strong>Komikku</strong>: Open <strong>More → Data and storage → Restore backup</strong>.</li>
+                <li>Select this file. All new manga will be directly added to your Library!</li>
+              </ol>
+              <div class="instruction-actions">
+                <button type="button" class="btn-secondary btn-sm" id="closeExportedTabsBtn">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                  <span id="closeExportedTabsBtnText">Close Exported Tabs</span>
+                </button>
               </div>
             </div>
-            <button type="button" class="btn-download" id="downloadBackupBtn">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="download-icon">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
+          </div>
+
+          <!-- Quick Filters & Export Toolbar -->
+          <div class="results-toolbar">
+            <div class="search-box">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
-              <span id="downloadBackupBtnText">Download Updated .tachibk</span>
+              <input type="text" id="filterInput" placeholder="Filter missing manga..." />
+            </div>
+            <button type="button" class="btn-secondary btn-sm" id="toggleSelectAllBtn" title="Toggle select or deselect all missing manga">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span id="toggleSelectAllText">Deselect All</span>
+            </button>
+            <button type="button" class="btn-secondary btn-sm" id="copyBtn" title="Copy missing manga list">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>Copy</span>
             </button>
           </div>
 
-          <!-- Post-Download Instructions Banner -->
-          <div class="download-instructions hidden" id="downloadInstructions">
-            <div class="instruction-badge">✓ Download Complete</div>
-            <div class="instruction-title">How to restore in Komikku:</div>
-            <ol class="instruction-steps">
-              <li>Send or transfer the downloaded <code class="code-tag">.tachibk</code> file to your phone.</li>
-              <li>In <strong>Komikku</strong>: Open <strong>More → Data and storage → Restore backup</strong>.</li>
-              <li>Select this file. All new manga will be directly added to your Library!</li>
-            </ol>
-            <div class="instruction-actions">
-              <button type="button" class="btn-secondary btn-sm" id="closeExportedTabsBtn">
+          <!-- Missing Manga List Grouped by Domain -->
+          <div class="results-list" id="resultsList">
+            <!-- Populated dynamically via JS -->
+          </div>
+
+          <!-- All Found State (Celebration) -->
+          <div class="all-found-state hidden" id="allFoundState">
+            <div class="all-found-icon">🎉</div>
+            <h3>All Caught Up!</h3>
+            <p>Every selected manga is already in your Komikku library.</p>
+            <button type="button" class="btn-danger btn-sm" id="closeAllFoundStateBtn" style="margin-top: 10px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+              <span id="closeAllFoundStateText">Close All Checked Tabs</span>
+            </button>
+          </div>
+
+          <!-- Found Manga Collapsible Area (Transparency & Tab Hygiene) -->
+          <div class="found-collapsible hidden" id="foundCollapsible">
+            <div class="found-header-row">
+              <button type="button" class="found-toggle-btn" id="foundToggleBtn">
+                <span>Manga in library (<span id="foundToggleCount">0</span>)</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="foundToggleArrow">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+              <button type="button" class="btn-danger btn-sm" id="closeFoundTabsBtn" title="Close selected tabs that are already in your library">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18"></line>
                   <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
-                <span id="closeExportedTabsBtnText">Close Exported Tabs</span>
+                <span id="closeFoundBtnText">Close Found Tabs</span>
+              </button>
+            </div>
+            <div class="found-list-container hidden" id="foundListContainer">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Library & Duplicates View Container -->
+      <section class="library-section hidden" id="libraryViewContainer">
+        <!-- Empty State (No Backup Loaded) -->
+        <div class="card library-empty-state" id="libraryEmptyState">
+          <div class="empty-icon">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"></path>
+              <path d="M6 6h10"></path>
+              <path d="M6 10h10"></path>
+              <path d="M6 14h6"></path>
+            </svg>
+          </div>
+          <h3>No Backup Loaded</h3>
+          <p>Drop or upload a <code class="code-tag">.tachibk</code> file above to explore your library entries, view their sources, and detect duplicates.</p>
+        </div>
+
+        <!-- Populated Library View -->
+        <div class="library-content hidden" id="libraryContent">
+          <!-- Summary Metrics Cards -->
+          <div class="summary-metrics library-metrics">
+            <div class="metric-pill">
+              <span class="metric-label">Total Manga</span>
+              <span class="metric-value" id="libMetricTotal">0</span>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-label">Unique Titles</span>
+              <span class="metric-value" id="libMetricUnique">0</span>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-label">Sources</span>
+              <span class="metric-value" id="libMetricSources">0</span>
+            </div>
+            <div class="metric-pill metric-category" id="libMetricCatPill">
+              <span class="metric-label">Categories</span>
+              <span class="metric-value" id="libMetricCategories">0</span>
+            </div>
+            <div class="metric-pill metric-highlight" id="libMetricDupPill">
+              <span class="metric-label">Duplicates</span>
+              <span class="metric-value" id="libMetricDuplicates">0</span>
+            </div>
+          </div>
+
+          <!-- Duplicate Alert Banner -->
+          <div class="dup-alert-banner hidden" id="dupAlertBanner">
+            <div class="dup-alert-icon">⚠️</div>
+            <div class="dup-alert-info">
+              <strong id="dupAlertTitle">Duplicates Detected</strong>
+              <span id="dupAlertSubtitle">3 duplicate titles found across sources.</span>
+            </div>
+            <button type="button" class="btn-sm btn-secondary" id="dupAlertActionBtn">View Duplicates</button>
+          </div>
+
+          <!-- Clean Library Banner (0 Duplicates) -->
+          <div class="clean-library-banner hidden" id="cleanLibraryBanner">
+            <div class="clean-icon">✓</div>
+            <div class="clean-info">
+              <strong>Clean Library</strong>
+              <span>No duplicate manga titles found in this backup.</span>
+            </div>
+          </div>
+
+          <!-- Search & Filter Controls -->
+          <div class="library-toolbar">
+            <div class="search-box lib-search-box">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="libSearchInput" placeholder="Search titles, artist, author..." />
+            </div>
+            <div class="lib-filter-controls">
+              <div class="lib-dropdowns-group">
+                <select id="libSourceFilter" class="lib-source-select" title="Filter by source extension">
+                  <option value="all">All Sources</option>
+                </select>
+                <select id="libCategoryFilter" class="lib-category-select" title="Filter by category">
+                  <option value="all">No categories yet</option>
+                </select>
+              </div>
+              <div class="btn-group-toggle">
+                <button type="button" class="btn-toggle active" id="btnFilterAll" title="Show all library manga">
+                  <span>All (<span id="countAllBtn">0</span>)</span>
+                </button>
+                <button type="button" class="btn-toggle" id="btnFilterDups" title="Show duplicate titles only">
+                  <span>Duplicates (<span id="countDupsBtn">0</span>)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Duplicate Action & Cleanup Bar (active in Duplicates view) -->
+          <div class="dup-actions-bar hidden" id="dupActionsBar">
+            <div class="dup-selection-summary">
+              <span class="dup-select-count" id="dupSelectCount">0 duplicates selected</span>
+              <button type="button" class="btn-link-subtle" id="btnDeselectAllDups">Deselect All</button>
+            </div>
+            <div class="dup-actions-buttons">
+              <div class="dup-rules-dropdown-wrapper">
+                <button type="button" class="btn-sm btn-secondary" id="btnAutoSelectRules" title="Choose auto-cleanup rule">
+                  <span>Auto-Select ▾</span>
+                </button>
+                <div class="dropdown-menu hidden" id="rulesDropdownMenu">
+                  <button type="button" class="dropdown-item" id="ruleSourcePref">
+                    <span class="rule-icon">⭐</span>
+                    <div class="rule-text">
+                      <strong>By Source Priorities</strong>
+                      <small>Keep highest-priority source copy</small>
+                    </div>
+                  </button>
+                  <button type="button" class="dropdown-item" id="ruleOldest">
+                    <span class="rule-icon">⏳</span>
+                    <div class="rule-text">
+                      <strong>Keep Oldest Added</strong>
+                      <small>Keep first added, delete newer copies</small>
+                    </div>
+                  </button>
+                  <button type="button" class="dropdown-item" id="ruleNewest">
+                    <span class="rule-icon">✨</span>
+                    <div class="rule-text">
+                      <strong>Keep Newest Added</strong>
+                      <small>Keep latest added, delete older copies</small>
+                    </div>
+                  </button>
+                  <div class="dropdown-divider"></div>
+                  <button type="button" class="dropdown-item" id="ruleSelectAll">
+                    <span class="rule-icon">☑️</span>
+                    <div class="rule-text">
+                      <strong>Select All Duplicates</strong>
+                      <small>Select all redundant copies (keeps 1 per group)</small>
+                    </div>
+                  </button>
+                </div>
+              </div>
+              <button type="button" class="btn-sm btn-secondary" id="btnOpenSourcePreferences" title="Configure source priority ranking">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 20V10M18 20V4M6 20v-4"/>
+                </svg>
+                <span>Source Priorities</span>
+              </button>
+              <button type="button" class="btn-sm btn-danger" id="btnDeleteSelectedDups" disabled title="Delete selected duplicate entries">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                <span id="btnDeleteSelectedText">Delete Selected (0)</span>
               </button>
             </div>
           </div>
-        </div>
 
-        <!-- Quick Filters & Export Toolbar -->
-        <div class="results-toolbar">
-          <div class="search-box">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input type="text" id="filterInput" placeholder="Filter missing manga..." />
-          </div>
-          <button type="button" class="btn-secondary btn-sm" id="toggleSelectAllBtn" title="Toggle select or deselect all missing manga">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            <span id="toggleSelectAllText">Deselect All</span>
-          </button>
-          <button type="button" class="btn-secondary btn-sm" id="copyBtn" title="Copy missing manga list">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-            <span>Copy</span>
-          </button>
-        </div>
-
-        <!-- Missing Manga List Grouped by Domain -->
-        <div class="results-list" id="resultsList">
-          <!-- Populated dynamically via JS -->
-        </div>
-
-        <!-- All Found State (Celebration) -->
-        <div class="all-found-state hidden" id="allFoundState">
-          <div class="all-found-icon">🎉</div>
-          <h3>All Caught Up!</h3>
-          <p>Every selected manga is already in your Komikku library.</p>
-          <button type="button" class="btn-danger btn-sm" id="closeAllFoundStateBtn" style="margin-top: 10px;">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-            <span id="closeAllFoundStateText">Close All Checked Tabs</span>
-          </button>
-        </div>
-
-        <!-- Found Manga Collapsible Area (Transparency & Tab Hygiene) -->
-        <div class="found-collapsible hidden" id="foundCollapsible">
-          <div class="found-header-row">
-            <button type="button" class="found-toggle-btn" id="foundToggleBtn">
-              <span>Manga in library (<span id="foundToggleCount">0</span>)</span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="foundToggleArrow">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </button>
-            <button type="button" class="btn-danger btn-sm" id="closeFoundTabsBtn" title="Close selected tabs that are already in your library">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-              <span id="closeFoundBtnText">Close Found Tabs</span>
-            </button>
-          </div>
-          <div class="found-list-container hidden" id="foundListContainer">
-            <!-- Populated via JS -->
+          <!-- Library Entries / Duplicate Groups List -->
+          <div class="library-list" id="libraryList">
+            <!-- Dynamically populated via JS -->
           </div>
         </div>
       </section>
     </main>
 
+    <!-- Source Preferences Modal -->
+    <div class="modal-backdrop hidden" id="sourcePrefModalBackdrop">
+      <div class="modal-dialog" id="sourcePrefModal" role="dialog" aria-modal="true" aria-labelledby="sourcePrefTitle">
+        <div class="modal-header">
+          <div class="modal-title-row">
+            <span class="modal-icon">⭐</span>
+            <h3 id="sourcePrefTitle">Source Priority Ranking</h3>
+          </div>
+          <button type="button" class="btn-icon modal-close" id="btnCloseSourcePrefModal" title="Close modal">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-desc">
+            Arrange sources in order of preference. When duplicate manga exist across multiple sources, Komikku Compare will retain the copy from your highest-ranked source and select the others for deletion.
+          </p>
+          <div class="source-priority-list" id="sourcePriorityList">
+            <!-- Dynamically populated via JS -->
+          </div>
+          <div class="modal-hint">
+            💡 Unranked sources not on this list will automatically have lower priority than ranked sources.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-sm btn-secondary" id="btnResetSourcePriorities">Reset Default</button>
+          <button type="button" class="btn-sm btn-primary" id="btnSaveSourcePriorities">Save & Apply Priorities</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirmation Modal for Duplicate Deletion -->
+    <div class="modal-backdrop hidden" id="deleteConfirmModalBackdrop">
+      <div class="modal-dialog modal-dialog-sm" id="deleteConfirmModal" role="dialog" aria-modal="true" aria-labelledby="deleteConfirmTitle">
+        <div class="modal-header">
+          <div class="modal-title-row">
+            <span class="modal-icon modal-icon-warn">⚠️</span>
+            <h3 id="deleteConfirmTitle">Confirm Duplicate Deletion</h3>
+          </div>
+          <button type="button" class="btn-icon modal-close" id="btnCloseDeleteConfirmModal" title="Close modal">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="confirm-stat-box">
+            <div class="confirm-stat-row">
+              <span class="confirm-stat-label">Duplicates to Delete:</span>
+              <strong class="confirm-stat-value text-danger" id="confirmDeleteCount">0 entries</strong>
+            </div>
+            <div class="confirm-stat-row">
+              <span class="confirm-stat-label">Titles Affected:</span>
+              <strong class="confirm-stat-value" id="confirmTitlesCount">0 titles</strong>
+            </div>
+            <div class="confirm-stat-row">
+              <span class="confirm-stat-label">Remaining in Library:</span>
+              <strong class="confirm-stat-value text-success" id="confirmRetainedCount">0 manga</strong>
+            </div>
+          </div>
+          <div class="safety-notice">
+            ℹ️ This removes selected duplicate records from your <code class="code-tag">.tachibk</code> library backup. Existing downloaded chapters on your device are not modified.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-sm btn-secondary" id="btnCancelDelete">Cancel</button>
+          <button type="button" class="btn-sm btn-danger" id="btnConfirmDelete">Confirm & Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cleanup Success & Download Modal -->
+    <div class="modal-backdrop hidden" id="cleanupSuccessModalBackdrop">
+      <div class="modal-dialog modal-dialog-sm" id="cleanupSuccessModal" role="dialog" aria-modal="true" aria-labelledby="cleanupSuccessTitle">
+        <div class="modal-header">
+          <div class="modal-title-row">
+            <span class="modal-icon modal-icon-success">🎉</span>
+            <h3 id="cleanupSuccessTitle">Library Cleaned Successfully!</h3>
+          </div>
+          <button type="button" class="btn-icon modal-close" id="btnCloseCleanupSuccessModal" title="Close modal">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="success-stat-box">
+            <p id="cleanupSuccessSummaryText">Successfully removed duplicate entries from your library backup.</p>
+            <div class="success-metric-row">
+              <div class="success-metric-pill">
+                <span>Removed</span>
+                <strong id="cleanupSuccessRemovedCount">0</strong>
+              </div>
+              <div class="success-metric-pill">
+                <span>Remaining</span>
+                <strong id="cleanupSuccessRemainingCount">0</strong>
+              </div>
+            </div>
+          </div>
+          <p class="cleanup-instructions">
+            Download your updated <code class="code-tag">.tachibk</code> file below and restore it in Komikku or Tachiyomi to enjoy a clean, deduplicated library!
+          </p>
+          <button type="button" class="btn-download btn-download-cleaned" id="btnDownloadCleanedBackup">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span id="btnDownloadCleanedText">Download Cleaned .tachibk</span>
+          </button>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-sm btn-secondary" id="btnCloseCleanupSuccessBtn">Close & Continue</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Footer -->
     <footer class="app-footer">
       <span class="footer-tip">Made for Zen Browser & Komikku</span>
-      <span class="footer-version">v1.0.0</span>
+      <span class="footer-version">v1.1.0</span>
     </footer>
   </div>
 

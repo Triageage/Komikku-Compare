@@ -1,7 +1,7 @@
 # Packaging script for Mozilla Firefox Add-on Store (AMO)
 # Uses standard forward slashes ('/') in ZIP headers required by Mozilla AMO.
 
-$outputZip = "komikku-compare-v1.0.0.zip"
+$outputZip = "komikku-compare-v1.1.0.zip"
 
 if (Test-Path $outputZip) {
     Remove-Item $outputZip -Force

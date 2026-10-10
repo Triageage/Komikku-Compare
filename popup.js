@@ -14,12 +14,35 @@
   const state = {
     komikkuTitles: new Set(),
     komikkuTitlesList: [],
+    libraryEntries: [],
+    sources: { byId: new Map(), byName: new Map() },
+    duplicates: {
+      groups: [],
+      totalDuplicatesCount: 0,
+      duplicateGroupsCount: 0,
+      sameSourceGroupsCount: 0,
+      crossSourceGroupsCount: 0,
+      sourcesInDuplicates: []
+    },
     backupFileName: '',
     originalBackupBuffer: null,
     highlightedTabs: [],
     lastComparisonResults: null,
     selectedMissingTabIds: new Set(),
-    lastExportedTabs: []
+    lastExportedTabs: [],
+    activeView: 'compare',
+    libFilterMode: 'all',
+    libSourceFilter: 'all',
+    libCategoryFilter: 'all',
+    libSearchQuery: '',
+    categories: [],
+    categoriesByOrder: new Map(),
+    uncategorizedCount: 0,
+    selectedDuplicateEntryIds: new Set(),
+    sourcePreferences: [],
+    activeAutoRule: 'sourcePreference',
+    lastCleanedBlob: null,
+    pendingDeletionEntries: []
   };
 
   // DOM Elements
@@ -67,17 +90,93 @@
     closeFoundTabsBtn: document.getElementById('closeFoundTabsBtn'),
     closeFoundBtnText: document.getElementById('closeFoundBtnText'),
     closeAllFoundStateBtn: document.getElementById('closeAllFoundStateBtn'),
-    closeAllFoundStateText: document.getElementById('closeAllFoundStateText')
+    closeAllFoundStateText: document.getElementById('closeAllFoundStateText'),
+
+    // View Navigation Tabs
+    tabNavCompare: document.getElementById('tabNavCompare'),
+    tabNavLibrary: document.getElementById('tabNavLibrary'),
+    navDupBadge: document.getElementById('navDupBadge'),
+    compareViewContainer: document.getElementById('compareViewContainer'),
+    libraryViewContainer: document.getElementById('libraryViewContainer'),
+
+    // Library View Elements
+    libraryEmptyState: document.getElementById('libraryEmptyState'),
+    libraryContent: document.getElementById('libraryContent'),
+    libMetricTotal: document.getElementById('libMetricTotal'),
+    libMetricUnique: document.getElementById('libMetricUnique'),
+    libMetricSources: document.getElementById('libMetricSources'),
+    libMetricCategories: document.getElementById('libMetricCategories'),
+    libMetricCatPill: document.getElementById('libMetricCatPill'),
+    libMetricDuplicates: document.getElementById('libMetricDuplicates'),
+    libMetricDupPill: document.getElementById('libMetricDupPill'),
+    dupAlertBanner: document.getElementById('dupAlertBanner'),
+    dupAlertTitle: document.getElementById('dupAlertTitle'),
+    dupAlertSubtitle: document.getElementById('dupAlertSubtitle'),
+    dupAlertActionBtn: document.getElementById('dupAlertActionBtn'),
+    cleanLibraryBanner: document.getElementById('cleanLibraryBanner'),
+    libSearchInput: document.getElementById('libSearchInput'),
+    libSourceFilter: document.getElementById('libSourceFilter'),
+    libCategoryFilter: document.getElementById('libCategoryFilter'),
+    btnFilterAll: document.getElementById('btnFilterAll'),
+    btnFilterDups: document.getElementById('btnFilterDups'),
+    countAllBtn: document.getElementById('countAllBtn'),
+    countDupsBtn: document.getElementById('countDupsBtn'),
+    libraryList: document.getElementById('libraryList'),
+
+    // Duplicate Management & Cleanup Elements
+    dupActionsBar: document.getElementById('dupActionsBar'),
+    dupSelectCount: document.getElementById('dupSelectCount'),
+    btnDeselectAllDups: document.getElementById('btnDeselectAllDups'),
+    btnAutoSelectRules: document.getElementById('btnAutoSelectRules'),
+    rulesDropdownMenu: document.getElementById('rulesDropdownMenu'),
+    ruleSourcePref: document.getElementById('ruleSourcePref'),
+    ruleOldest: document.getElementById('ruleOldest'),
+    ruleNewest: document.getElementById('ruleNewest'),
+    ruleSelectAll: document.getElementById('ruleSelectAll'),
+    btnOpenSourcePreferences: document.getElementById('btnOpenSourcePreferences'),
+    btnDeleteSelectedDups: document.getElementById('btnDeleteSelectedDups'),
+    btnDeleteSelectedText: document.getElementById('btnDeleteSelectedText'),
+
+    // Source Priority Modal
+    sourcePrefModalBackdrop: document.getElementById('sourcePrefModalBackdrop'),
+    sourcePrefModal: document.getElementById('sourcePrefModal'),
+    btnCloseSourcePrefModal: document.getElementById('btnCloseSourcePrefModal'),
+    sourcePriorityList: document.getElementById('sourcePriorityList'),
+    btnResetSourcePriorities: document.getElementById('btnResetSourcePriorities'),
+    btnSaveSourcePriorities: document.getElementById('btnSaveSourcePriorities'),
+
+    // Deletion Confirmation Modal
+    deleteConfirmModalBackdrop: document.getElementById('deleteConfirmModalBackdrop'),
+    deleteConfirmModal: document.getElementById('deleteConfirmModal'),
+    btnCloseDeleteConfirmModal: document.getElementById('btnCloseDeleteConfirmModal'),
+    confirmDeleteCount: document.getElementById('confirmDeleteCount'),
+    confirmTitlesCount: document.getElementById('confirmTitlesCount'),
+    confirmRetainedCount: document.getElementById('confirmRetainedCount'),
+    btnCancelDelete: document.getElementById('btnCancelDelete'),
+    btnConfirmDelete: document.getElementById('btnConfirmDelete'),
+
+    // Cleanup Success & Download Modal
+    cleanupSuccessModalBackdrop: document.getElementById('cleanupSuccessModalBackdrop'),
+    cleanupSuccessModal: document.getElementById('cleanupSuccessModal'),
+    btnCloseCleanupSuccessModal: document.getElementById('btnCloseCleanupSuccessModal'),
+    cleanupSuccessSummaryText: document.getElementById('cleanupSuccessSummaryText'),
+    cleanupSuccessRemovedCount: document.getElementById('cleanupSuccessRemovedCount'),
+    cleanupSuccessRemainingCount: document.getElementById('cleanupSuccessRemainingCount'),
+    btnDownloadCleanedBackup: document.getElementById('btnDownloadCleanedBackup'),
+    btnDownloadCleanedText: document.getElementById('btnDownloadCleanedText'),
+    btnCloseCleanupSuccessBtn: document.getElementById('btnCloseCleanupSuccessBtn')
   };
 
   // Storage Keys
   const STORAGE_KEY_BACKUP = 'komikku_compare_backup_data_v2';
+  const STORAGE_KEY_SOURCE_PRIORITIES = 'komikku_source_priorities_v1';
 
   /**
    * Initializes extension popup.
    */
   async function init() {
     setupEventListeners();
+    await loadSourcePreferences();
     await restoreSavedLibrary();
     await updateHighlightedTabs();
 
@@ -241,6 +340,164 @@
 
     // Copy missing list
     elements.copyBtn.addEventListener('click', handleCopyResults);
+
+    // View Navigation Tabs
+    if (elements.tabNavCompare) {
+      elements.tabNavCompare.addEventListener('click', () => switchView('compare'));
+    }
+    if (elements.tabNavLibrary) {
+      elements.tabNavLibrary.addEventListener('click', () => switchView('library'));
+    }
+
+    // Duplicate alert action button
+    if (elements.dupAlertActionBtn) {
+      elements.dupAlertActionBtn.addEventListener('click', () => {
+        state.libFilterMode = 'duplicates';
+        updateLibraryFilterButtons();
+        updateDuplicateSelectionUI();
+        renderLibraryView();
+      });
+    }
+
+    // Library filter mode toggle buttons (All / Duplicates)
+    if (elements.btnFilterAll) {
+      elements.btnFilterAll.addEventListener('click', () => {
+        state.libFilterMode = 'all';
+        updateLibraryFilterButtons();
+        updateDuplicateSelectionUI();
+        renderLibraryView();
+      });
+    }
+    if (elements.btnFilterDups) {
+      elements.btnFilterDups.addEventListener('click', () => {
+        state.libFilterMode = 'duplicates';
+        updateLibraryFilterButtons();
+        updateDuplicateSelectionUI();
+        renderLibraryView();
+      });
+    }
+
+    // Duplicate Action Bar & Auto-Select Rules
+    if (elements.btnAutoSelectRules && elements.rulesDropdownMenu) {
+      elements.btnAutoSelectRules.addEventListener('click', (e) => {
+        e.stopPropagation();
+        elements.rulesDropdownMenu.classList.toggle('hidden');
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.dup-rules-dropdown-wrapper')) {
+          elements.rulesDropdownMenu.classList.add('hidden');
+        }
+      });
+    }
+
+    if (elements.ruleSourcePref) {
+      elements.ruleSourcePref.addEventListener('click', () => {
+        if (elements.rulesDropdownMenu) elements.rulesDropdownMenu.classList.add('hidden');
+        applyAutoSelectRule('sourcePreference');
+      });
+    }
+    if (elements.ruleOldest) {
+      elements.ruleOldest.addEventListener('click', () => {
+        if (elements.rulesDropdownMenu) elements.rulesDropdownMenu.classList.add('hidden');
+        applyAutoSelectRule('oldest');
+      });
+    }
+    if (elements.ruleNewest) {
+      elements.ruleNewest.addEventListener('click', () => {
+        if (elements.rulesDropdownMenu) elements.rulesDropdownMenu.classList.add('hidden');
+        applyAutoSelectRule('newest');
+      });
+    }
+    if (elements.ruleSelectAll) {
+      elements.ruleSelectAll.addEventListener('click', () => {
+        if (elements.rulesDropdownMenu) elements.rulesDropdownMenu.classList.add('hidden');
+        applyAutoSelectRule('all');
+      });
+    }
+    if (elements.btnDeselectAllDups) {
+      elements.btnDeselectAllDups.addEventListener('click', () => {
+        applyAutoSelectRule('none');
+      });
+    }
+
+    // Source Priorities Modal
+    if (elements.btnOpenSourcePreferences) {
+      elements.btnOpenSourcePreferences.addEventListener('click', openSourcePreferencesModal);
+    }
+    if (elements.btnCloseSourcePrefModal) {
+      elements.btnCloseSourcePrefModal.addEventListener('click', closeSourcePreferencesModal);
+    }
+    if (elements.sourcePrefModalBackdrop) {
+      elements.sourcePrefModalBackdrop.addEventListener('click', (e) => {
+        if (e.target === elements.sourcePrefModalBackdrop) closeSourcePreferencesModal();
+      });
+    }
+    if (elements.btnResetSourcePriorities) {
+      elements.btnResetSourcePriorities.addEventListener('click', handleResetSourcePriorities);
+    }
+    if (elements.btnSaveSourcePriorities) {
+      elements.btnSaveSourcePriorities.addEventListener('click', handleSaveSourcePriorities);
+    }
+
+    // Duplicate Deletion Confirmation Modal
+    if (elements.btnDeleteSelectedDups) {
+      elements.btnDeleteSelectedDups.addEventListener('click', () => openDeleteConfirmModal());
+    }
+    if (elements.btnCloseDeleteConfirmModal) {
+      elements.btnCloseDeleteConfirmModal.addEventListener('click', closeDeleteConfirmModal);
+    }
+    if (elements.btnCancelDelete) {
+      elements.btnCancelDelete.addEventListener('click', closeDeleteConfirmModal);
+    }
+    if (elements.deleteConfirmModalBackdrop) {
+      elements.deleteConfirmModalBackdrop.addEventListener('click', (e) => {
+        if (e.target === elements.deleteConfirmModalBackdrop) closeDeleteConfirmModal();
+      });
+    }
+    if (elements.btnConfirmDelete) {
+      elements.btnConfirmDelete.addEventListener('click', executeDuplicateDeletion);
+    }
+
+    // Cleanup Success & Download Modal
+    if (elements.btnCloseCleanupSuccessModal) {
+      elements.btnCloseCleanupSuccessModal.addEventListener('click', closeCleanupSuccessModal);
+    }
+    if (elements.btnCloseCleanupSuccessBtn) {
+      elements.btnCloseCleanupSuccessBtn.addEventListener('click', closeCleanupSuccessModal);
+    }
+    if (elements.cleanupSuccessModalBackdrop) {
+      elements.cleanupSuccessModalBackdrop.addEventListener('click', (e) => {
+        if (e.target === elements.cleanupSuccessModalBackdrop) closeCleanupSuccessModal();
+      });
+    }
+    if (elements.btnDownloadCleanedBackup) {
+      elements.btnDownloadCleanedBackup.addEventListener('click', downloadCleanedBackup);
+    }
+
+    // Library category dropdown filter
+    if (elements.libCategoryFilter) {
+      elements.libCategoryFilter.addEventListener('change', (e) => {
+        state.libCategoryFilter = e.target.value;
+        renderLibraryView();
+      });
+    }
+
+    // Library source dropdown filter
+    if (elements.libSourceFilter) {
+      elements.libSourceFilter.addEventListener('change', (e) => {
+        state.libSourceFilter = e.target.value;
+        renderLibraryView();
+      });
+    }
+
+    // Library search filter
+    if (elements.libSearchInput) {
+      elements.libSearchInput.addEventListener('input', (e) => {
+        state.libSearchQuery = e.target.value.trim().toLowerCase();
+        renderLibraryView();
+      });
+    }
   }
 
   /**
@@ -272,6 +529,57 @@
           }
         }
       }
+
+      // If we have originalBackupBuffer, re-parse to populate rich library entries and duplicates
+      if (state.originalBackupBuffer && state.libraryEntries.length === 0) {
+        try {
+          const parsed = await BackupParser.parseKomikkuBackup(state.originalBackupBuffer);
+          if (parsed && parsed.count > 0) {
+            state.komikkuTitles = parsed.titles;
+            state.komikkuTitlesList = parsed.titlesList;
+            state.libraryEntries = parsed.entries || [];
+            state.sources = parsed.sources || { byId: new Map(), byName: new Map() };
+            state.categories = parsed.categories || [];
+            state.categoriesByOrder = parsed.categoriesByOrder || new Map();
+            state.uncategorizedCount = parsed.uncategorizedCount || 0;
+            state.duplicates = parsed.duplicates || {
+              groups: [],
+              totalDuplicatesCount: 0,
+              duplicateGroupsCount: 0,
+              sameSourceGroupsCount: 0,
+              crossSourceGroupsCount: 0,
+              sourcesInDuplicates: []
+            };
+
+            syncSourcePreferencesWithDuplicates();
+            if (state.duplicates.duplicateGroupsCount > 0) {
+              BackupParser.applyDuplicateSelectionRule(state.duplicates.groups, state.activeAutoRule, {
+                sourcePreferences: state.sourcePreferences
+              });
+              state.selectedDuplicateEntryIds.clear();
+              for (const g of state.duplicates.groups) {
+                for (const e of g.entries) {
+                  if (e.isSelectedForDelete) state.selectedDuplicateEntryIds.add(e.id);
+                }
+              }
+            }
+
+            updateLibraryUIStats();
+            populateSourceFilterDropdown();
+            populateCategoryFilterControls();
+            updateDuplicateSelectionUI();
+            renderLibraryView();
+          }
+        } catch (err) {
+          console.warn('Could not re-parse restored backup buffer:', err);
+        }
+      } else if (state.libraryEntries.length > 0) {
+        updateLibraryUIStats();
+        populateSourceFilterDropdown();
+        populateCategoryFilterControls();
+        updateDuplicateSelectionUI();
+        renderLibraryView();
+      }
     } catch (e) {
       console.warn('Could not restore cached backup:', e);
     }
@@ -301,11 +609,31 @@
   async function clearLibrary() {
     state.komikkuTitles.clear();
     state.komikkuTitlesList = [];
+    state.libraryEntries = [];
+    state.sources = { byId: new Map(), byName: new Map() };
+    state.duplicates = {
+      groups: [],
+      totalDuplicatesCount: 0,
+      duplicateGroupsCount: 0,
+      sameSourceGroupsCount: 0,
+      crossSourceGroupsCount: 0,
+      sourcesInDuplicates: []
+    };
     state.backupFileName = '';
     state.originalBackupBuffer = null;
     state.lastComparisonResults = null;
     state.selectedMissingTabIds.clear();
     state.lastExportedTabs = [];
+    state.libFilterMode = 'all';
+    state.libSourceFilter = 'all';
+    state.libCategoryFilter = 'all';
+    state.libSearchQuery = '';
+    state.categories = [];
+    state.categoriesByOrder = new Map();
+    state.uncategorizedCount = 0;
+    state.selectedDuplicateEntryIds.clear();
+    state.lastCleanedBlob = null;
+    state.pendingDeletionEntries = [];
 
     try {
       if (api.storage && api.storage.local) {
@@ -323,6 +651,15 @@
     elements.statusDot.classList.remove('active');
     elements.badgeText.textContent = 'No backup loaded';
     elements.resultsSection.classList.add('hidden');
+
+    if (elements.libMetricCategories) elements.libMetricCategories.textContent = '0';
+
+    if (elements.libSearchInput) elements.libSearchInput.value = '';
+    updateLibraryUIStats();
+    populateSourceFilterDropdown();
+    populateCategoryFilterControls();
+    updateDuplicateSelectionUI();
+    renderLibraryView();
 
     updateProcessButtonState();
   }
@@ -412,11 +749,43 @@
 
       state.komikkuTitles = parsed.titles;
       state.komikkuTitlesList = parsed.titlesList;
+      state.libraryEntries = parsed.entries || [];
+      state.sources = parsed.sources || { byId: new Map(), byName: new Map() };
+      state.categories = parsed.categories || [];
+      state.categoriesByOrder = parsed.categoriesByOrder || new Map();
+      state.uncategorizedCount = parsed.uncategorizedCount || 0;
+      state.duplicates = parsed.duplicates || {
+        groups: [],
+        totalDuplicatesCount: 0,
+        duplicateGroupsCount: 0,
+        sameSourceGroupsCount: 0,
+        crossSourceGroupsCount: 0,
+        sourcesInDuplicates: []
+      };
+
+      // Synchronize and apply duplicate selection rule
+      syncSourcePreferencesWithDuplicates();
+      if (state.duplicates.duplicateGroupsCount > 0) {
+        BackupParser.applyDuplicateSelectionRule(state.duplicates.groups, state.activeAutoRule, {
+          sourcePreferences: state.sourcePreferences
+        });
+        state.selectedDuplicateEntryIds.clear();
+        for (const g of state.duplicates.groups) {
+          for (const e of g.entries) {
+            if (e.isSelectedForDelete) state.selectedDuplicateEntryIds.add(e.id);
+          }
+        }
+      }
 
       // Save to local storage for persistence
       await saveLibraryToStorage(file.name, parsed.titlesList);
 
       showLoadedFileUI(file.name, parsed.count);
+      updateLibraryUIStats();
+      populateSourceFilterDropdown();
+      populateCategoryFilterControls();
+      updateDuplicateSelectionUI();
+      renderLibraryView();
     } catch (err) {
       console.error('Failed to parse backup:', err);
       alert(`Error reading backup: ${err.message}`);
@@ -1256,6 +1625,1248 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  }
+
+  /**
+   * Switches active top tab between Compare and Library view.
+   * @param {'compare'|'library'} viewName
+   */
+  function switchView(viewName) {
+    state.activeView = viewName;
+    if (viewName === 'compare') {
+      if (elements.tabNavCompare) elements.tabNavCompare.classList.add('active');
+      if (elements.tabNavLibrary) elements.tabNavLibrary.classList.remove('active');
+      if (elements.compareViewContainer) elements.compareViewContainer.classList.remove('hidden');
+      if (elements.libraryViewContainer) elements.libraryViewContainer.classList.add('hidden');
+      updateDuplicateSelectionUI();
+    } else {
+      if (elements.tabNavCompare) elements.tabNavCompare.classList.remove('active');
+      if (elements.tabNavLibrary) elements.tabNavLibrary.classList.add('active');
+      if (elements.compareViewContainer) elements.compareViewContainer.classList.add('hidden');
+      if (elements.libraryViewContainer) elements.libraryViewContainer.classList.remove('hidden');
+      updateDuplicateSelectionUI();
+      renderLibraryView();
+    }
+  }
+
+  /**
+   * Updates statistical badges and banners in Library Explorer.
+   */
+  function updateLibraryUIStats() {
+    const totalEntries = state.libraryEntries ? state.libraryEntries.length : 0;
+    const uniqueTitles = state.komikkuTitles ? state.komikkuTitles.size : 0;
+    const dupCount = (state.duplicates && state.duplicates.duplicateGroupsCount) ? state.duplicates.duplicateGroupsCount : 0;
+
+    // Count unique source names
+    const sourceNames = new Set((state.libraryEntries || []).map(e => e.sourceName).filter(Boolean));
+    const totalSources = sourceNames.size;
+
+    const totalCategories = (state.categories && state.categories.length) ? state.categories.length : 0;
+
+    if (elements.libMetricTotal) elements.libMetricTotal.textContent = totalEntries.toLocaleString();
+    if (elements.libMetricUnique) elements.libMetricUnique.textContent = uniqueTitles.toLocaleString();
+    if (elements.libMetricSources) elements.libMetricSources.textContent = totalSources.toLocaleString();
+    if (elements.libMetricCategories) elements.libMetricCategories.textContent = totalCategories.toLocaleString();
+    if (elements.libMetricDuplicates) elements.libMetricDuplicates.textContent = dupCount.toLocaleString();
+
+    if (elements.countAllBtn) elements.countAllBtn.textContent = totalEntries.toLocaleString();
+    if (elements.countDupsBtn) elements.countDupsBtn.textContent = dupCount.toLocaleString();
+
+    // Nav bar duplicate badge
+    if (elements.navDupBadge) {
+      if (dupCount > 0) {
+        elements.navDupBadge.textContent = dupCount.toLocaleString();
+        elements.navDupBadge.classList.remove('hidden');
+      } else {
+        elements.navDupBadge.classList.add('hidden');
+      }
+    }
+
+    // Toggle Empty State vs Populated Content
+    if (totalEntries === 0) {
+      if (elements.libraryEmptyState) elements.libraryEmptyState.classList.remove('hidden');
+      if (elements.libraryContent) elements.libraryContent.classList.add('hidden');
+      if (elements.dupAlertBanner) elements.dupAlertBanner.classList.add('hidden');
+      if (elements.cleanLibraryBanner) elements.cleanLibraryBanner.classList.add('hidden');
+    } else {
+      if (elements.libraryEmptyState) elements.libraryEmptyState.classList.add('hidden');
+      if (elements.libraryContent) elements.libraryContent.classList.remove('hidden');
+
+      if (dupCount > 0) {
+        if (elements.dupAlertBanner) elements.dupAlertBanner.classList.remove('hidden');
+        if (elements.cleanLibraryBanner) elements.cleanLibraryBanner.classList.add('hidden');
+        if (elements.dupAlertSubtitle) {
+          const sCount = state.duplicates.sameSourceGroupsCount || 0;
+          const cCount = state.duplicates.crossSourceGroupsCount || 0;
+          const totalExtra = state.duplicates.totalDuplicatesCount || dupCount;
+          const breakdown = [];
+          if (sCount > 0) breakdown.push(`${sCount} same-source`);
+          if (cCount > 0) breakdown.push(`${cCount} cross-source`);
+          const breakdownText = breakdown.length ? ` (${breakdown.join(', ')})` : '';
+          elements.dupAlertSubtitle.textContent = `${dupCount} duplicate title ${dupCount === 1 ? 'group' : 'groups'} with ${totalExtra} redundant ${totalExtra === 1 ? 'entry' : 'entries'}${breakdownText}.`;
+        }
+      } else {
+        if (elements.dupAlertBanner) elements.dupAlertBanner.classList.add('hidden');
+        if (elements.cleanLibraryBanner) elements.cleanLibraryBanner.classList.remove('hidden');
+      }
+    }
+  }
+
+  /**
+   * Populates the category filter dropdown next to the sources filter.
+   * If the backup contains no categories, displays "No categories yet".
+   * Fully AMO-compliant: constructs DOM nodes with document.createElement and textContent.
+   */
+  function populateCategoryFilterControls() {
+    if (!elements.libCategoryFilter) return;
+
+    const prevSelected = state.libCategoryFilter || 'all';
+
+    // Clear dropdown safely
+    while (elements.libCategoryFilter.firstChild) {
+      elements.libCategoryFilter.removeChild(elements.libCategoryFilter.firstChild);
+    }
+
+    const categories = state.categories || [];
+
+    if (categories.length === 0) {
+      // If there are no categories in the user's tachibk file, show "No categories yet"
+      const emptyOpt = document.createElement('option');
+      emptyOpt.value = 'all';
+      emptyOpt.textContent = 'No categories yet';
+      emptyOpt.selected = true;
+      elements.libCategoryFilter.appendChild(emptyOpt);
+      state.libCategoryFilter = 'all';
+      return;
+    }
+
+    // Default option: "All Categories"
+    const allOpt = document.createElement('option');
+    allOpt.value = 'all';
+    allOpt.textContent = 'All Categories';
+    if (prevSelected === 'all') allOpt.selected = true;
+    elements.libCategoryFilter.appendChild(allOpt);
+
+    let matchFound = (prevSelected === 'all');
+
+    for (const cat of categories) {
+      const opt = document.createElement('option');
+      opt.value = cat.name;
+      opt.textContent = `${cat.name} (${cat.count || 0})`;
+      if (prevSelected === cat.name) {
+        opt.selected = true;
+        matchFound = true;
+      }
+      elements.libCategoryFilter.appendChild(opt);
+    }
+
+    if (state.uncategorizedCount > 0) {
+      const uncatOpt = document.createElement('option');
+      uncatOpt.value = '__uncategorized__';
+      uncatOpt.textContent = `Uncategorized (${state.uncategorizedCount})`;
+      if (prevSelected === '__uncategorized__') {
+        uncatOpt.selected = true;
+        matchFound = true;
+      }
+      elements.libCategoryFilter.appendChild(uncatOpt);
+    }
+
+    if (!matchFound) {
+      allOpt.selected = true;
+      state.libCategoryFilter = 'all';
+    }
+  }
+
+  /**
+   * Populates the source filter <select> based on active library entries.
+   */
+  function populateSourceFilterDropdown() {
+    if (!elements.libSourceFilter) return;
+
+    const prevSelected = state.libSourceFilter || 'all';
+
+    // Safe AMO-compliant DOM clear
+    while (elements.libSourceFilter.firstChild) {
+      elements.libSourceFilter.removeChild(elements.libSourceFilter.firstChild);
+    }
+
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = 'all';
+    defaultOpt.textContent = 'All Sources';
+    elements.libSourceFilter.appendChild(defaultOpt);
+
+    const sourceCounts = new Map();
+    for (const entry of (state.libraryEntries || [])) {
+      const src = entry.sourceName || 'Unknown Source';
+      sourceCounts.set(src, (sourceCounts.get(src) || 0) + 1);
+    }
+
+    const sortedSources = Array.from(sourceCounts.keys()).sort((a, b) => a.localeCompare(b));
+    for (const src of sortedSources) {
+      const count = sourceCounts.get(src);
+      const opt = document.createElement('option');
+      opt.value = src;
+      opt.textContent = `${src} (${count})`;
+      if (src === prevSelected) {
+        opt.selected = true;
+      }
+      elements.libSourceFilter.appendChild(opt);
+    }
+  }
+
+  /**
+   * Updates toggle button active classes for All vs Duplicates.
+   */
+  function updateLibraryFilterButtons() {
+    if (elements.btnFilterAll && elements.btnFilterDups) {
+      if (state.libFilterMode === 'duplicates') {
+        elements.btnFilterAll.classList.remove('active');
+        elements.btnFilterDups.classList.add('active');
+      } else {
+        elements.btnFilterAll.classList.add('active');
+        elements.btnFilterDups.classList.remove('active');
+      }
+    }
+  }
+
+  /**
+   * Returns a specific source pill class for color-coding known manga sources.
+   * @param {string} sourceName
+   * @returns {string}
+   */
+  function getSourcePillClass(sourceName) {
+    const s = (sourceName || '').toLowerCase();
+    if (s.includes('mangadex')) return 'source-mangadex';
+    if (s.includes('comix')) return 'source-comix';
+    if (s.includes('asura')) return 'source-asura';
+    if (s.includes('weeb') || s.includes('central')) return 'source-weebcentral';
+    if (s.includes('flame')) return 'source-flame';
+    return '';
+  }
+
+  /**
+   * State tracking for library rendering pagination/chunking
+   */
+  let libraryRenderLimit = 150;
+
+  /**
+   * Renders the Library Explorer list (either all entries or duplicate groups).
+   * Fully AMO-compliant: constructs DOM nodes with document.createElement, textContent, setAttribute.
+   */
+  function renderLibraryView(showAllLimit = false) {
+    if (!elements.libraryList) return;
+
+    if (showAllLimit) {
+      libraryRenderLimit += 200;
+    } else {
+      libraryRenderLimit = 150;
+    }
+
+    // Clear previous items safely
+    while (elements.libraryList.firstChild) {
+      elements.libraryList.removeChild(elements.libraryList.firstChild);
+    }
+
+    if (!state.libraryEntries || state.libraryEntries.length === 0) {
+      const emptyBox = document.createElement('div');
+      emptyBox.className = 'empty-search-state';
+      const p = document.createElement('p');
+      p.textContent = 'No library entries to display.';
+      emptyBox.appendChild(p);
+      elements.libraryList.appendChild(emptyBox);
+      return;
+    }
+
+    const query = state.libSearchQuery || '';
+    const sourceFilter = state.libSourceFilter || 'all';
+
+    if (state.libFilterMode === 'duplicates') {
+      renderDuplicateGroupsView(query, sourceFilter);
+    } else {
+      renderAllEntriesView(query, sourceFilter);
+    }
+  }
+
+  /**
+   * Renders the 'All Entries' view.
+   */
+  function renderAllEntriesView(query, sourceFilter) {
+    const categoryFilter = state.libCategoryFilter || 'all';
+
+    // Build quick lookup for duplicates
+    const dupKeySet = new Set((state.duplicates && state.duplicates.groups) ? state.duplicates.groups.map(g => g.key) : []);
+
+    const filtered = state.libraryEntries.filter(entry => {
+      // 1. Source filter
+      if (sourceFilter !== 'all' && entry.sourceName !== sourceFilter) {
+        return false;
+      }
+
+      // 2. Category filter
+      if (categoryFilter === '__uncategorized__') {
+        if (!entry.isUncategorized && Array.isArray(entry.categoryNames) && entry.categoryNames.length > 0) {
+          return false;
+        }
+      } else if (categoryFilter !== 'all') {
+        if (!Array.isArray(entry.categoryNames) || !entry.categoryNames.includes(categoryFilter)) {
+          return false;
+        }
+      }
+
+      // 3. Search query (matches title, artist, author, source, and category names)
+      if (query) {
+        const titleMatch = entry.title && entry.title.toLowerCase().includes(query);
+        const artistMatch = entry.artist && entry.artist.toLowerCase().includes(query);
+        const authorMatch = entry.author && entry.author.toLowerCase().includes(query);
+        const sourceMatch = entry.sourceName && entry.sourceName.toLowerCase().includes(query);
+        const catMatch = Array.isArray(entry.categoryNames) && entry.categoryNames.some(cn => cn.toLowerCase().includes(query));
+        if (!titleMatch && !artistMatch && !authorMatch && !sourceMatch && !catMatch) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      const emptyBox = document.createElement('div');
+      emptyBox.className = 'empty-search-state';
+      const p1 = document.createElement('strong');
+      p1.textContent = 'No manga matching filter';
+      const p2 = document.createElement('span');
+      p2.textContent = 'Try adjusting your search terms, source, or category filter.';
+      emptyBox.appendChild(p1);
+      emptyBox.appendChild(p2);
+      elements.libraryList.appendChild(emptyBox);
+      return;
+    }
+
+    const totalMatching = filtered.length;
+    const toRender = filtered.slice(0, libraryRenderLimit);
+
+    for (const entry of toRender) {
+      const card = document.createElement('div');
+      card.className = 'lib-entry-card';
+
+      const main = document.createElement('div');
+      main.className = 'lib-entry-main';
+
+      const titleEl = document.createElement('span');
+      titleEl.className = 'lib-entry-title';
+      titleEl.textContent = entry.title;
+      titleEl.title = entry.title;
+      main.appendChild(titleEl);
+
+      const sub = document.createElement('div');
+      sub.className = 'lib-entry-sub';
+
+      // Source pill
+      const pill = document.createElement('span');
+      const pillClass = getSourcePillClass(entry.sourceName);
+      pill.className = `source-pill ${pillClass}`.trim();
+      pill.textContent = entry.sourceName || 'Unknown Source';
+      sub.appendChild(pill);
+
+      // Category pills
+      if (Array.isArray(entry.categoryNames) && entry.categoryNames.length > 0) {
+        for (const catName of entry.categoryNames) {
+          const catPill = document.createElement('span');
+          catPill.className = 'category-pill';
+          catPill.textContent = `📁 ${catName}`;
+          catPill.title = `Category: ${catName}`;
+          sub.appendChild(catPill);
+        }
+      }
+
+      // Author / Artist if available
+      const creator = (entry.author || entry.artist || '').trim();
+      if (creator) {
+        const creatorEl = document.createElement('span');
+        creatorEl.className = 'lib-entry-creator';
+        creatorEl.textContent = `• ${creator}`;
+        sub.appendChild(creatorEl);
+      }
+
+      // Relative or absolute URL if available
+      if (entry.url && entry.url !== '/') {
+        const urlEl = document.createElement('span');
+        urlEl.className = 'lib-entry-url';
+        urlEl.textContent = entry.url;
+        urlEl.title = entry.url;
+        sub.appendChild(urlEl);
+      }
+
+      main.appendChild(sub);
+      card.appendChild(main);
+
+      // Duplicate badge if this entry has duplicates in the library
+      const normKey = (typeof BackupParser !== 'undefined' && BackupParser.getNormalizedDuplicateKey)
+        ? BackupParser.getNormalizedDuplicateKey(entry.title)
+        : entry.title.toLowerCase();
+
+      if (dupKeySet.has(normKey)) {
+        const dupBadge = document.createElement('button');
+        dupBadge.type = 'button';
+        dupBadge.className = 'lib-entry-badge-dup';
+        dupBadge.title = 'Click to inspect duplicates of this title';
+        dupBadge.textContent = '⚠️ Duplicate';
+        dupBadge.addEventListener('click', (e) => {
+          e.stopPropagation();
+          state.libFilterMode = 'duplicates';
+          state.libSearchQuery = entry.title.toLowerCase();
+          if (elements.libSearchInput) elements.libSearchInput.value = entry.title;
+          updateLibraryFilterButtons();
+          renderLibraryView();
+        });
+        card.appendChild(dupBadge);
+      }
+
+      elements.libraryList.appendChild(card);
+    }
+
+    // Show more button if truncated
+    if (totalMatching > libraryRenderLimit) {
+      const moreBtnContainer = document.createElement('div');
+      moreBtnContainer.style.textAlign = 'center';
+      moreBtnContainer.style.padding = '8px';
+
+      const moreBtn = document.createElement('button');
+      moreBtn.type = 'button';
+      moreBtn.className = 'btn-sm btn-secondary';
+      moreBtn.textContent = `Show More (+${Math.min(200, totalMatching - libraryRenderLimit)} of ${totalMatching - libraryRenderLimit} remaining)`;
+      moreBtn.addEventListener('click', () => {
+        renderLibraryView(true);
+      });
+      moreBtnContainer.appendChild(moreBtn);
+      elements.libraryList.appendChild(moreBtnContainer);
+    }
+  }
+
+  /**
+   * Loads saved source preference ordering from storage.
+   */
+  async function loadSourcePreferences() {
+    try {
+      if (api.storage && api.storage.local) {
+        const data = await api.storage.local.get(STORAGE_KEY_SOURCE_PRIORITIES);
+        if (data && Array.isArray(data[STORAGE_KEY_SOURCE_PRIORITIES])) {
+          state.sourcePreferences = data[STORAGE_KEY_SOURCE_PRIORITIES];
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load source preferences from storage:', e);
+    }
+  }
+
+  /**
+   * Persists source preference ordering to storage.
+   * @param {string[]} prefs
+   */
+  async function saveSourcePreferences(prefs) {
+    state.sourcePreferences = prefs;
+    try {
+      if (api.storage && api.storage.local) {
+        await api.storage.local.set({ [STORAGE_KEY_SOURCE_PRIORITIES]: prefs });
+      }
+    } catch (e) {
+      console.warn('Could not save source preferences to storage:', e);
+    }
+  }
+
+  /**
+   * Synchronizes source preference list with sources currently present among duplicate manga.
+   * Keeps existing order and appends newly discovered sources to the bottom.
+   */
+  function syncSourcePreferencesWithDuplicates() {
+    const sourcesInDups = (state.duplicates && Array.isArray(state.duplicates.sourcesInDuplicates))
+      ? state.duplicates.sourcesInDuplicates
+      : [];
+
+    if (sourcesInDups.length === 0) return;
+
+    const currentList = Array.isArray(state.sourcePreferences) ? [...state.sourcePreferences] : [];
+    const ordered = [];
+
+    // Retain existing ranking for sources that are still present
+    for (const src of currentList) {
+      if (sourcesInDups.includes(src) && !ordered.includes(src)) {
+        ordered.push(src);
+      }
+    }
+
+    // Append newly found sources at the end
+    for (const src of sourcesInDups) {
+      if (!ordered.includes(src)) {
+        ordered.push(src);
+      }
+    }
+
+    state.sourcePreferences = ordered;
+  }
+
+  /**
+   * Applies an automated duplicate selection rule and updates UI selection state.
+   * @param {'sourcePreference' | 'oldest' | 'newest' | 'all' | 'none'} ruleName
+   */
+  function applyAutoSelectRule(ruleName) {
+    if (!state.duplicates || !Array.isArray(state.duplicates.groups) || state.duplicates.groups.length === 0) {
+      return;
+    }
+    state.activeAutoRule = ruleName;
+    BackupParser.applyDuplicateSelectionRule(state.duplicates.groups, ruleName, {
+      sourcePreferences: state.sourcePreferences
+    });
+
+    // Synchronize selectedDuplicateEntryIds
+    state.selectedDuplicateEntryIds.clear();
+    if (ruleName !== 'none') {
+      for (const group of state.duplicates.groups) {
+        for (const entry of group.entries) {
+          if (entry.isSelectedForDelete) {
+            state.selectedDuplicateEntryIds.add(entry.id);
+          }
+        }
+      }
+    }
+
+    updateDuplicateSelectionUI();
+    renderLibraryView();
+  }
+
+  /**
+   * Updates duplicate selection toolbar count, delete button disabled status, and visibility.
+   */
+  function updateDuplicateSelectionUI() {
+    const count = state.selectedDuplicateEntryIds.size;
+    if (elements.dupSelectCount) {
+      elements.dupSelectCount.textContent = `${count} duplicate${count === 1 ? '' : 's'} selected`;
+    }
+    if (elements.btnDeleteSelectedDups) {
+      elements.btnDeleteSelectedDups.disabled = count === 0;
+    }
+    if (elements.btnDeleteSelectedText) {
+      elements.btnDeleteSelectedText.textContent = `Delete Selected (${count})`;
+    }
+
+    // Action bar is visible only when in Duplicates filter view with > 0 duplicates
+    const isDupsView = state.activeView === 'library' && state.libFilterMode === 'duplicates';
+    const hasDups = state.duplicates && state.duplicates.duplicateGroupsCount > 0;
+    if (elements.dupActionsBar) {
+      if (isDupsView && hasDups) {
+        elements.dupActionsBar.classList.remove('hidden');
+      } else {
+        elements.dupActionsBar.classList.add('hidden');
+      }
+    }
+  }
+
+  /**
+   * Toggles selection of a specific duplicate entry, maintaining the invariant
+   * that at least 1 entry is retained per group.
+   * @param {string} groupKey
+   * @param {string} entryId
+   */
+  function toggleDuplicateEntrySelection(groupKey, entryId) {
+    const group = (state.duplicates && state.duplicates.groups)
+      ? state.duplicates.groups.find(g => g.key === groupKey)
+      : null;
+    if (!group) return;
+
+    const entry = group.entries.find(e => e.id === entryId);
+    if (!entry) return;
+
+    const willSelectForDelete = !state.selectedDuplicateEntryIds.has(entryId);
+
+    if (willSelectForDelete) {
+      // If marking the current keep entry for deletion, transfer keep status to another copy
+      if (entry.isKeep) {
+        const otherEntry = group.entries.find(e => e.id !== entryId);
+        if (otherEntry) {
+          otherEntry.isKeep = true;
+          otherEntry.isSelectedForDelete = false;
+          otherEntry.decisionReason = 'Retained entry (automatic fallback)';
+          state.selectedDuplicateEntryIds.delete(otherEntry.id);
+          group.keepEntry = otherEntry;
+        } else {
+          alert('Cannot delete this entry: at least one copy of every manga must be retained.');
+          return;
+        }
+      }
+
+      state.selectedDuplicateEntryIds.add(entryId);
+      entry.isSelectedForDelete = true;
+      entry.isKeep = false;
+      entry.decisionReason = 'Manually selected for deletion';
+    } else {
+      state.selectedDuplicateEntryIds.delete(entryId);
+      entry.isSelectedForDelete = false;
+      entry.decisionReason = 'Preserved by user';
+
+      // Ensure at least one entry has isKeep = true
+      const hasKeep = group.entries.some(e => e.isKeep);
+      if (!hasKeep) {
+        entry.isKeep = true;
+        entry.decisionReason = 'Designated entry to retain';
+        group.keepEntry = entry;
+      }
+    }
+
+    updateDuplicateSelectionUI();
+    renderLibraryView();
+  }
+
+  /**
+   * Designates a specific entry to be kept and marks all other copies in the group for deletion.
+   * @param {string} groupKey
+   * @param {string} entryId
+   */
+  function setGroupKeepEntry(groupKey, entryId) {
+    const group = (state.duplicates && state.duplicates.groups)
+      ? state.duplicates.groups.find(g => g.key === groupKey)
+      : null;
+    if (!group) return;
+
+    for (const entry of group.entries) {
+      if (entry.id === entryId) {
+        entry.isKeep = true;
+        entry.isSelectedForDelete = false;
+        entry.decisionReason = 'Designated entry to retain (user choice)';
+        state.selectedDuplicateEntryIds.delete(entry.id);
+        group.keepEntry = entry;
+      } else {
+        entry.isKeep = false;
+        entry.isSelectedForDelete = true;
+        entry.decisionReason = 'Redundant duplicate entry';
+        state.selectedDuplicateEntryIds.add(entry.id);
+      }
+    }
+
+    updateDuplicateSelectionUI();
+    renderLibraryView();
+  }
+
+  /**
+   * Opens the Source Priority Ranking modal.
+   */
+  function openSourcePreferencesModal() {
+    syncSourcePreferencesWithDuplicates();
+    renderSourcePreferencesList();
+    if (elements.sourcePrefModalBackdrop) {
+      elements.sourcePrefModalBackdrop.classList.remove('hidden');
+    }
+  }
+
+  /**
+   * Closes the Source Priority Ranking modal.
+   */
+  function closeSourcePreferencesModal() {
+    if (elements.sourcePrefModalBackdrop) {
+      elements.sourcePrefModalBackdrop.classList.add('hidden');
+    }
+  }
+
+  let draggedSourceIndex = null;
+
+  /**
+   * Renders the draggable and reorderable source priority list.
+   */
+  function renderSourcePreferencesList() {
+    if (!elements.sourcePriorityList) return;
+    while (elements.sourcePriorityList.firstChild) {
+      elements.sourcePriorityList.removeChild(elements.sourcePriorityList.firstChild);
+    }
+
+    const list = state.sourcePreferences;
+    if (!list || list.length === 0) {
+      const emptyP = document.createElement('p');
+      emptyP.className = 'modal-desc';
+      emptyP.textContent = 'No duplicate sources found in current backup.';
+      elements.sourcePriorityList.appendChild(emptyP);
+      return;
+    }
+
+    // Calculate duplicate entry count per source
+    const countsBySource = new Map();
+    if (state.duplicates && state.duplicates.groups) {
+      for (const g of state.duplicates.groups) {
+        for (const e of g.entries) {
+          const s = e.sourceName || 'Unknown Source';
+          countsBySource.set(s, (countsBySource.get(s) || 0) + 1);
+        }
+      }
+    }
+
+    list.forEach((sourceName, index) => {
+      const item = document.createElement('div');
+      item.className = 'source-priority-item';
+      item.draggable = true;
+      item.dataset.index = String(index);
+
+      const left = document.createElement('div');
+      left.className = 'source-priority-item-left';
+
+      const handle = document.createElement('span');
+      handle.className = 'drag-handle';
+      handle.title = 'Drag to reorder priority';
+      handle.textContent = '⋮⋮';
+      left.appendChild(handle);
+
+      const rankBadge = document.createElement('span');
+      rankBadge.className = 'source-priority-rank';
+      rankBadge.textContent = String(index + 1);
+      left.appendChild(rankBadge);
+
+      const name = document.createElement('span');
+      name.className = 'source-priority-name';
+      name.textContent = sourceName;
+      left.appendChild(name);
+
+      item.appendChild(left);
+
+      const count = countsBySource.get(sourceName) || 0;
+      const countEl = document.createElement('span');
+      countEl.className = 'source-priority-count';
+      countEl.textContent = `${count} entries`;
+      item.appendChild(countEl);
+
+      const arrows = document.createElement('div');
+      arrows.className = 'source-priority-arrows';
+
+      const btnUp = document.createElement('button');
+      btnUp.type = 'button';
+      btnUp.className = 'btn-rank-move';
+      btnUp.textContent = '▲';
+      btnUp.title = 'Move Up';
+      btnUp.disabled = index === 0;
+      btnUp.addEventListener('click', (e) => {
+        e.stopPropagation();
+        moveSourcePriority(index, index - 1);
+      });
+      arrows.appendChild(btnUp);
+
+      const btnDown = document.createElement('button');
+      btnDown.type = 'button';
+      btnDown.className = 'btn-rank-move';
+      btnDown.textContent = '▼';
+      btnDown.title = 'Move Down';
+      btnDown.disabled = index === list.length - 1;
+      btnDown.addEventListener('click', (e) => {
+        e.stopPropagation();
+        moveSourcePriority(index, index + 1);
+      });
+      arrows.appendChild(btnDown);
+
+      item.appendChild(arrows);
+
+      // Drag and drop event handlers
+      item.addEventListener('dragstart', (e) => {
+        draggedSourceIndex = index;
+        item.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+
+      item.addEventListener('dragend', () => {
+        item.classList.remove('dragging');
+        draggedSourceIndex = null;
+        const allItems = elements.sourcePriorityList.querySelectorAll('.source-priority-item');
+        allItems.forEach(el => el.classList.remove('drag-over'));
+      });
+
+      item.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        item.classList.add('drag-over');
+      });
+
+      item.addEventListener('dragleave', () => {
+        item.classList.remove('drag-over');
+      });
+
+      item.addEventListener('drop', (e) => {
+        e.preventDefault();
+        item.classList.remove('drag-over');
+        if (draggedSourceIndex !== null && draggedSourceIndex !== index) {
+          moveSourcePriority(draggedSourceIndex, index);
+        }
+      });
+
+      elements.sourcePriorityList.appendChild(item);
+    });
+  }
+
+  /**
+   * Reorders source priority list.
+   * @param {number} fromIdx
+   * @param {number} toIdx
+   */
+  function moveSourcePriority(fromIdx, toIdx) {
+    if (fromIdx < 0 || fromIdx >= state.sourcePreferences.length ||
+        toIdx < 0 || toIdx >= state.sourcePreferences.length) return;
+
+    const list = [...state.sourcePreferences];
+    const [moved] = list.splice(fromIdx, 1);
+    list.splice(toIdx, 0, moved);
+    state.sourcePreferences = list;
+    renderSourcePreferencesList();
+  }
+
+  /**
+   * Resets source priority list to natural alphabetical order.
+   */
+  function handleResetSourcePriorities() {
+    const sourcesInDups = (state.duplicates && Array.isArray(state.duplicates.sourcesInDuplicates))
+      ? [...state.duplicates.sourcesInDuplicates]
+      : [];
+    state.sourcePreferences = sourcesInDups.sort((a, b) => a.localeCompare(b));
+    renderSourcePreferencesList();
+  }
+
+  /**
+   * Saves source priorities to storage, re-applies source preference rule, and closes modal.
+   */
+  async function handleSaveSourcePriorities() {
+    await saveSourcePreferences(state.sourcePreferences);
+    closeSourcePreferencesModal();
+    applyAutoSelectRule('sourcePreference');
+  }
+
+  /**
+   * Opens pre-deletion confirmation modal summarizing entries to be removed.
+   * @param {Array<Object>} [customEntries] Optional custom list for single-entry deletion
+   */
+  function openDeleteConfirmModal(customEntries = null) {
+    let entriesToDelete = [];
+    if (Array.isArray(customEntries) && customEntries.length > 0) {
+      entriesToDelete = customEntries;
+    } else {
+      for (const group of (state.duplicates.groups || [])) {
+        for (const entry of group.entries) {
+          if (state.selectedDuplicateEntryIds.has(entry.id)) {
+            entriesToDelete.push(entry);
+          }
+        }
+      }
+    }
+
+    if (entriesToDelete.length === 0) {
+      alert('No duplicate entries selected for deletion.');
+      return;
+    }
+
+    state.pendingDeletionEntries = entriesToDelete;
+
+    const totalToDelete = entriesToDelete.length;
+    const affectedTitles = new Set(entriesToDelete.map(e => e.title.toLowerCase())).size;
+    const totalLibrary = state.libraryEntries ? state.libraryEntries.length : 0;
+    const remainingCount = Math.max(0, totalLibrary - totalToDelete);
+
+    if (elements.confirmDeleteCount) {
+      elements.confirmDeleteCount.textContent = `${totalToDelete} duplicate ${totalToDelete === 1 ? 'entry' : 'entries'}`;
+    }
+    if (elements.confirmTitlesCount) {
+      elements.confirmTitlesCount.textContent = `${affectedTitles} unique ${affectedTitles === 1 ? 'title' : 'titles'}`;
+    }
+    if (elements.confirmRetainedCount) {
+      elements.confirmRetainedCount.textContent = `${remainingCount.toLocaleString()} manga`;
+    }
+
+    if (elements.deleteConfirmModalBackdrop) {
+      elements.deleteConfirmModalBackdrop.classList.remove('hidden');
+    }
+  }
+
+  /**
+   * Closes pre-deletion confirmation modal.
+   */
+  function closeDeleteConfirmModal() {
+    state.pendingDeletionEntries = [];
+    if (elements.deleteConfirmModalBackdrop) {
+      elements.deleteConfirmModalBackdrop.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Executes deletion of pending duplicate entries from the backup.
+   */
+  async function executeDuplicateDeletion() {
+    const entriesToDelete = state.pendingDeletionEntries;
+    if (!entriesToDelete || entriesToDelete.length === 0) return;
+
+    closeDeleteConfirmModal();
+
+    if (!state.originalBackupBuffer) {
+      alert('Original backup buffer not found in memory. Please reload the backup file.');
+      return;
+    }
+
+    elements.progressBarContainer.classList.remove('hidden');
+    elements.progressText.textContent = `Removing ${entriesToDelete.length} duplicates from backup...`;
+
+    try {
+      await new Promise(r => setTimeout(r, 40));
+
+      const result = await BackupParser.removeEntriesFromBackup(
+        state.originalBackupBuffer,
+        entriesToDelete
+      );
+
+      // Update in-memory buffer and cleaned Blob
+      state.originalBackupBuffer = result.compressedBytes;
+      state.lastCleanedBlob = result.blob;
+
+      // Persist cleaned buffer in IndexedDB
+      if (typeof BackupStorage !== 'undefined') {
+        try {
+          await BackupStorage.saveBackup(result.compressedBytes, state.backupFileName);
+        } catch (e) {
+          console.warn('BackupStorage update failed:', e);
+        }
+      }
+
+      // Re-parse the updated backup buffer
+      const parsed = await BackupParser.parseKomikkuBackup(result.compressedBytes);
+      state.komikkuTitles = parsed.titles;
+      state.komikkuTitlesList = parsed.titlesList;
+      state.libraryEntries = parsed.entries || [];
+      state.sources = parsed.sources || { byId: new Map(), byName: new Map() };
+      state.categories = parsed.categories || [];
+      state.categoriesByOrder = parsed.categoriesByOrder || new Map();
+      state.uncategorizedCount = parsed.uncategorizedCount || 0;
+      state.duplicates = parsed.duplicates || {
+        groups: [],
+        totalDuplicatesCount: 0,
+        duplicateGroupsCount: 0,
+        sameSourceGroupsCount: 0,
+        crossSourceGroupsCount: 0,
+        sourcesInDuplicates: []
+      };
+
+      // Clear selection set
+      state.selectedDuplicateEntryIds.clear();
+
+      // Save updated titles to extension storage
+      await saveLibraryToStorage(state.backupFileName, parsed.titlesList);
+
+      // Re-run auto selection if any duplicates remain
+      if (state.duplicates.duplicateGroupsCount > 0) {
+        BackupParser.applyDuplicateSelectionRule(state.duplicates.groups, state.activeAutoRule, {
+          sourcePreferences: state.sourcePreferences
+        });
+        for (const g of state.duplicates.groups) {
+          for (const e of g.entries) {
+            if (e.isSelectedForDelete) {
+              state.selectedDuplicateEntryIds.add(e.id);
+            }
+          }
+        }
+      }
+
+      // Update UI elements
+      showLoadedFileUI(state.backupFileName, parsed.count);
+      updateLibraryUIStats();
+      populateSourceFilterDropdown();
+      populateCategoryFilterControls();
+      updateDuplicateSelectionUI();
+      renderLibraryView();
+
+      // Open Success Modal
+      openCleanupSuccessModal(result.removedCount, state.libraryEntries.length);
+    } catch (err) {
+      console.error('Failed to remove duplicate entries:', err);
+      alert(`Cleanup failed: ${err.message}`);
+    } finally {
+      elements.progressBarContainer.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Opens the post-cleanup success and download modal.
+   * @param {number} removedCount
+   * @param {number} remainingCount
+   */
+  function openCleanupSuccessModal(removedCount, remainingCount) {
+    if (elements.cleanupSuccessRemovedCount) {
+      elements.cleanupSuccessRemovedCount.textContent = `${removedCount}`;
+    }
+    if (elements.cleanupSuccessRemainingCount) {
+      elements.cleanupSuccessRemainingCount.textContent = `${remainingCount.toLocaleString()}`;
+    }
+    if (elements.cleanupSuccessSummaryText) {
+      elements.cleanupSuccessSummaryText.textContent = `Successfully removed ${removedCount} duplicate ${removedCount === 1 ? 'entry' : 'entries'} from your library backup.`;
+    }
+    if (elements.cleanupSuccessModalBackdrop) {
+      elements.cleanupSuccessModalBackdrop.classList.remove('hidden');
+    }
+  }
+
+  /**
+   * Closes the post-cleanup success modal.
+   */
+  function closeCleanupSuccessModal() {
+    if (elements.cleanupSuccessModalBackdrop) {
+      elements.cleanupSuccessModalBackdrop.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Triggers download of the cleaned .tachibk backup file.
+   */
+  function downloadCleanedBackup() {
+    if (!state.lastCleanedBlob && !state.originalBackupBuffer) {
+      alert('No cleaned backup available to download.');
+      return;
+    }
+
+    const blob = state.lastCleanedBlob || new Blob([state.originalBackupBuffer], { type: 'application/gzip' });
+    const originalName = state.backupFileName || 'backup.tachibk';
+    const baseName = originalName.replace(/\.(tachibk|proto\.gz|gz|json)$/i, '');
+    const ext = originalName.endsWith('.tachibk') ? '.tachibk' : '.proto.gz';
+    const filename = `${baseName}_cleaned${ext}`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
+
+  /**
+   * Renders the 'Duplicates' grouped view with checkboxes, keep/delete badges,
+   * reason indicators, date added, and individual action buttons.
+   * Fully AMO-compliant: constructs DOM nodes with document.createElement, textContent, setAttribute.
+   */
+  function renderDuplicateGroupsView(query, sourceFilter) {
+    const categoryFilter = state.libCategoryFilter || 'all';
+
+    const allGroups = (state.duplicates && state.duplicates.groups) ? state.duplicates.groups : [];
+
+    const filtered = allGroups.filter(group => {
+      // 1. Source filter: at least one entry in the group matches this source
+      if (sourceFilter !== 'all') {
+        const hasSource = group.entries.some(e => e.sourceName === sourceFilter);
+        if (!hasSource) return false;
+      }
+
+      // 2. Category filter: at least one entry in the group matches this category
+      if (categoryFilter === '__uncategorized__') {
+        const hasUncat = group.entries.some(e => e.isUncategorized || !e.categoryNames || e.categoryNames.length === 0);
+        if (!hasUncat) return false;
+      } else if (categoryFilter !== 'all') {
+        const hasCat = group.entries.some(e => Array.isArray(e.categoryNames) && e.categoryNames.includes(categoryFilter));
+        if (!hasCat) return false;
+      }
+
+      // 3. Search query
+      if (query) {
+        const canonMatch = group.canonicalTitle.toLowerCase().includes(query);
+        const entriesMatch = group.entries.some(e =>
+          (e.title && e.title.toLowerCase().includes(query)) ||
+          (e.sourceName && e.sourceName.toLowerCase().includes(query)) ||
+          (e.author && e.author.toLowerCase().includes(query)) ||
+          (e.artist && e.artist.toLowerCase().includes(query)) ||
+          (Array.isArray(e.categoryNames) && e.categoryNames.some(cn => cn.toLowerCase().includes(query)))
+        );
+        if (!canonMatch && !entriesMatch) return false;
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      const emptyBox = document.createElement('div');
+      emptyBox.className = 'empty-search-state';
+      const p1 = document.createElement('strong');
+      p1.textContent = allGroups.length === 0 ? 'No Duplicate Titles Found!' : 'No duplicates matching filter';
+      const p2 = document.createElement('span');
+      p2.textContent = allGroups.length === 0
+        ? 'Your library has 0 duplicate entries across all sources.'
+        : 'Try adjusting your search terms, source, or category filter.';
+      emptyBox.appendChild(p1);
+      emptyBox.appendChild(p2);
+      elements.libraryList.appendChild(emptyBox);
+      return;
+    }
+
+    const totalMatching = filtered.length;
+    const toRender = filtered.slice(0, libraryRenderLimit);
+
+    for (const group of toRender) {
+      const groupCard = document.createElement('div');
+      groupCard.className = 'dup-group-card';
+
+      // Group Header
+      const header = document.createElement('div');
+      header.className = 'dup-group-header';
+
+      const titleRow = document.createElement('div');
+      titleRow.className = 'dup-group-title-row';
+
+      const title = document.createElement('span');
+      title.className = 'dup-group-title';
+      title.textContent = group.canonicalTitle;
+      title.title = group.canonicalTitle;
+      titleRow.appendChild(title);
+
+      const countBadge = document.createElement('span');
+      countBadge.className = 'dup-count-badge';
+      countBadge.textContent = `${group.count} copies`;
+      titleRow.appendChild(countBadge);
+
+      header.appendChild(titleRow);
+
+      // Type Badge (Same Source vs Cross-Source)
+      const typeBadge = document.createElement('span');
+      typeBadge.className = `dup-type-badge ${group.isSameSource ? 'same-source' : 'cross-source'}`;
+      typeBadge.textContent = group.isSameSource ? 'Same Source' : 'Cross-Source';
+      typeBadge.title = group.isSameSource
+        ? 'All copies belong to the same manga source'
+        : `Copies from ${group.sources.length} different sources: ${group.sources.join(', ')}`;
+      header.appendChild(typeBadge);
+
+      groupCard.appendChild(header);
+
+      // Group Entries
+      const entriesContainer = document.createElement('div');
+      entriesContainer.className = 'dup-group-entries';
+
+      for (const entry of group.entries) {
+        const isDelete = state.selectedDuplicateEntryIds.has(entry.id);
+        const isKeep = !isDelete;
+
+        const row = document.createElement('div');
+        row.className = `dup-entry-row ${isDelete ? 'marked-for-delete' : 'marked-as-keep'}`;
+
+        const left = document.createElement('div');
+        left.className = 'dup-entry-left';
+
+        // Checkbox for selection
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'manga-checkbox dup-entry-checkbox';
+        checkbox.checked = isDelete;
+        checkbox.title = isKeep
+          ? 'Currently designated to KEEP. Checking will select for deletion and designate another copy to keep.'
+          : 'Toggle selection for deletion';
+        checkbox.addEventListener('change', () => {
+          toggleDuplicateEntrySelection(group.key, entry.id);
+        });
+        left.appendChild(checkbox);
+
+        // Entry Information
+        const info = document.createElement('div');
+        info.className = 'dup-entry-info';
+
+        const rowTitle = document.createElement('span');
+        rowTitle.className = 'dup-entry-title';
+        rowTitle.textContent = entry.title;
+        rowTitle.title = entry.title;
+        info.appendChild(rowTitle);
+
+        // Metadata row
+        const meta = document.createElement('div');
+        meta.className = 'dup-entry-meta';
+
+        // Source pill
+        const pill = document.createElement('span');
+        const pillClass = getSourcePillClass(entry.sourceName);
+        pill.className = `source-pill ${pillClass}`.trim();
+        pill.textContent = entry.sourceName || 'Unknown Source';
+        meta.appendChild(pill);
+
+        // Category pills
+        if (Array.isArray(entry.categoryNames) && entry.categoryNames.length > 0) {
+          for (const catName of entry.categoryNames) {
+            const catPill = document.createElement('span');
+            catPill.className = 'category-pill';
+            catPill.textContent = `📁 ${catName}`;
+            catPill.title = `Category: ${catName}`;
+            meta.appendChild(catPill);
+          }
+        }
+
+        // Status badge (✓ KEEP vs 🗑 DELETE)
+        const badge = document.createElement('span');
+        badge.className = `badge-status ${isKeep ? 'badge-keep' : 'badge-delete'}`;
+        badge.textContent = isKeep ? '✓ KEEP' : '🗑 DELETE';
+        meta.appendChild(badge);
+
+        // Date Added badge
+        const dateBadge = document.createElement('span');
+        dateBadge.className = 'dup-date-badge';
+        dateBadge.textContent = `📅 ${entry.formattedDate || 'Unknown date'}`;
+        dateBadge.title = entry.dateAdded > 0
+          ? `Added: ${new Date(entry.dateAdded).toLocaleString()}`
+          : 'Date added not recorded in backup';
+        meta.appendChild(dateBadge);
+
+        // Decision Reason badge
+        if (entry.decisionReason) {
+          const reasonBadge = document.createElement('span');
+          reasonBadge.className = 'dup-reason-badge';
+          reasonBadge.textContent = entry.decisionReason;
+          reasonBadge.title = `Cleanup reason: ${entry.decisionReason}`;
+          meta.appendChild(reasonBadge);
+        }
+
+        info.appendChild(meta);
+        left.appendChild(info);
+        row.appendChild(left);
+
+        // Right Action Buttons
+        const right = document.createElement('div');
+        right.className = 'dup-entry-right';
+
+        if (!isKeep) {
+          const btnKeep = document.createElement('button');
+          btnKeep.type = 'button';
+          btnKeep.className = 'btn-set-keep';
+          btnKeep.textContent = 'Keep This';
+          btnKeep.title = 'Keep this copy instead and select other duplicates for deletion';
+          btnKeep.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setGroupKeepEntry(group.key, entry.id);
+          });
+          right.appendChild(btnKeep);
+        }
+
+        const btnDel = document.createElement('button');
+        btnDel.type = 'button';
+        btnDel.className = 'btn-delete-single';
+        btnDel.textContent = '🗑';
+        btnDel.title = 'Delete this individual duplicate entry';
+        btnDel.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openDeleteConfirmModal([entry]);
+        });
+        right.appendChild(btnDel);
+
+        row.appendChild(right);
+        entriesContainer.appendChild(row);
+      }
+
+      groupCard.appendChild(entriesContainer);
+      elements.libraryList.appendChild(groupCard);
+    }
+
+    // Show more button if truncated
+    if (totalMatching > libraryRenderLimit) {
+      const moreBtnContainer = document.createElement('div');
+      moreBtnContainer.style.textAlign = 'center';
+      moreBtnContainer.style.padding = '8px';
+
+      const moreBtn = document.createElement('button');
+      moreBtn.type = 'button';
+      moreBtn.className = 'btn-sm btn-secondary';
+      moreBtn.textContent = `Show More (+${Math.min(200, totalMatching - libraryRenderLimit)} of ${totalMatching - libraryRenderLimit} remaining)`;
+      moreBtn.addEventListener('click', () => {
+        renderLibraryView(true);
+      });
+      moreBtnContainer.appendChild(moreBtn);
+      elements.libraryList.appendChild(moreBtnContainer);
+    }
   }
 
   // Initialize once DOM is ready

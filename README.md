@@ -1,87 +1,129 @@
-# Komikku Compare — Zen Browser Extension
+# Komikku Compare — Zen Browser & Firefox Extension
 
-A high-performance Manifest V3 browser extension built specifically for **Zen Browser** (and Firefox) that cross-references your currently selected (highlighted) browser tabs with a **Komikku** (or **Tachiyomi** / **Mihon**) backup file (`.tachibk`) to reveal which manga you haven't added to your library yet.
+A high-performance Manifest V3 browser extension built specifically for **Zen Browser** and **Firefox** that cross-references your selected browser tabs with your **Komikku** (or **Tachiyomi** / **Mihon**) library backup (`.tachibk`) to reveal missing manga, identify duplicate entries across sources, and manage your library categories.
 
 ---
 
-## Features
+## Key Features
 
+### 1. Tab Comparison & Missing Manga Detection
 - **Zen Browser Multi-Tab Querying**:
   - Queries **only** the tabs you have highlighted/selected in the active window (`browser.tabs.query({ highlighted: true, currentWindow: true })`).
-  - Friendly smart reminder appears if only 1 tab is highlighted, teaching you how to multi-select tabs in Zen Browser (<kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + click or <kbd>Shift</kbd> + click).
-- **Fast Offline .tachibk Parsing**:
-  - Automatically decompresses GZIP-compressed Protocol Buffers via native browser `DecompressionStream('gzip')` with bundled `pako.min.js` fallback.
-  - Zero-dependency binary Protobuf reader extracts Field 3 (manga title) from `BackupManga` (Field 1).
-  - Built-in heuristic scanner and JSON backup fallback to support variations across Tachiyomi forks (Mihon, Komikku, TachiyomiSY, Neko).
-  - Persists parsed library in browser storage so you don't need to re-upload every time the popup opens.
+  - Helpful tooltip reminder if only 1 tab is selected (<kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + click or <kbd>Shift</kbd> + click to multi-select).
 - **Intelligent Title Cleaning**:
-  - Strips scanlation SEO junk, chapter numbers, domain names, and delimiters (`-`, `|`, `–`, `—`, `~`, `»`, `•`, `:`, etc.).
-  - Handles chapter-first formats like MangaDex (`Ch. 142 - Jujutsu Kaisen - MangaDex` &rarr; `jujutsu kaisen`).
-  - Strips words like `Read`, `Chapter [X]`, `Online`, `Free`, `[RAW]`, `(Official)`, etc.
+  - Strips scanlation SEO junk, chapter numbers, website domain names, and delimiters (`-`, `|`, `–`, `—`, `~`, `»`, `•`, etc.).
+  - Handles chapter-first formats (e.g. `Ch. 142 - Jujutsu Kaisen - MangaDex` &rarr; `jujutsu kaisen`).
+  - Cleans keywords like `Read`, `Chapter [X]`, `Online`, `Free`, `[RAW]`, `(Official)`.
 - **Bidirectional & Normalized Matching**:
   - Exact match, bidirectional substring match, and punctuation-normalized matching (`SPY×FAMILY` &harr; `spy x family`).
 - **Domain-Grouped Results**:
-  - Groups missing manga by source domain (e.g. `mangakakalot.com`, `mangadex.org`).
-  - One-click "Go to tab" button to instantly switch to and focus the tab.
-  - Quick search filter and one-click "Copy" export formatted as Markdown.
-- **Close Found Tabs (Tab Hygiene)**:
-  - One-click button with two-step confirmation to close all selected tabs that are already in your Komikku library, leaving only the missing manga open.
-  - Individual close buttons next to each found item in the expandable "Manga in library" list.
-  - "Close All Checked Tabs" button in the celebration card when all selected manga are already in your library.
+  - Groups missing manga by source domain (e.g. `mangadex.org`, `weebcentral.com`).
+  - One-click **"Go to tab"** button to jump directly to any tab.
+  - Markdown export copy button.
+- **Tab Hygiene (Close Found Tabs)**:
+  - One-click action to close all tabs already present in your library, leaving only missing manga open.
+
+### 2. Library Explorer with Sources & Categories
+- **Complete Library Overview**:
+  - Displays total manga count, unique titles, source count, category count, and duplicate count.
+- **Side-by-Side Unified Dropdowns**:
+  - **Sources Dropdown**: Filter by source extension (e.g., MangaDex, Weeb Central, Asura, Flame) with title counts.
+  - **Categories Dropdown**: Sits directly next to the Sources dropdown to filter by user-created categories (e.g., `Favorites`, `Manhwa`, `Completed`) with counts, plus an `Uncategorized` filter.
+  - If a backup file has no categories, the dropdown clearly displays **"No categories yet"**.
+  - **Simultaneous Filtering**: Search queries, source filters, and category filters operate concurrently.
+- **Rich Manga Cards**:
+  - Displays title, author/artist, URL path, distinct colored source pill (`.source-pill`), category badges (`📁 Category`), and duplicate alert badges.
+
+### 3. Duplicate Detection, Priority Ranking & Cleanup
+- **Cross-Source & Same-Source Duplicate Detection**:
+  - Identifies duplicate entries across identical or different sources using canonical title normalization.
+- **Automated Duplicate Selection Rules**:
+  - **By Source Priorities**: Retain copies from your preferred sources based on customizable drag/button priority rankings.
+  - **Keep Oldest Added**: Preserves the first entry added to your library and marks newer duplicates for deletion.
+  - **Keep Newest Added**: Preserves the most recently added entry and marks older copies for deletion.
+  - **Select All Duplicates**: Keeps 1 entry per group and marks all redundant copies.
+- **Granular Manual Selection**:
+  - Interactive checkboxes on every duplicate entry with clear `✓ KEEP` vs `🗑 DELETE` designation badges and date added timestamps.
+- **Clean Backup Export**:
+  - Excises selected duplicate manga directly from the Protobuf binary structure.
+  - Downloads a clean, updated `.tachibk` file ready to restore in Komikku.
+
+### 4. Fast Offline Parsing & Security
+- **100% Offline & Private**: Zero external network requests; all parsing, matching, and de-duplication happen in-browser.
+- **Protobuf Binary Reader**: High-speed, zero-dependency parser extracts `BackupManga`, `BackupSource`, and `BackupCategory` fields.
+- **IndexedDB & Local Storage Caching**: Persists your library across popup sessions so you don't need to re-upload on every open.
+- **AMO Compliant**: Fully compliant with Mozilla Add-on Store policies (no unsafe `innerHTML` with dynamic content).
 
 ---
 
-## File Structure
+## Project Structure
 
-```
+```text
 Komikku Compare/
-├── manifest.json              # Manifest V3 configuration with Gecko ID for Zen Browser
-├── popup.html                 # Modern Zen-themed extension popup interface
-├── popup.css                  # Dark mode styling with glowing accents and smooth micro-animations
-├── popup.js                   # Popup orchestrator, tab queries, and storage handling
+├── manifest.json              # Manifest V3 extension configuration (Gecko ID for Zen/Firefox)
+├── popup.html                 # Main popup UI (Compare view, Library Explorer, modals)
+├── popup.css                  # Dark mode Zen-browser aesthetic stylesheet
+├── popup.js                   # Application state, event handlers, and UI rendering
+├── upload.html                # Full-page drag-and-drop backup upload view
+├── upload.js                  # Full-page upload controller
+├── package-extension.ps1      # Mozilla AMO packaging script (POSIX forward slashes)
+├── README.md                  # Project documentation
 ├── lib/
-│   ├── pako.min.js            # Bundled lightweight GZIP decompression library
-│   ├── backup-parser.js       # Binary Protobuf and GZIP reader for .tachibk files
-│   ├── title-cleaner.js       # Scanlation SEO spam & chapter cleaner
-│   └── matcher.js             # Exact, substring, and normalized library comparator
+│   ├── backup-parser.js       # Protobuf binary reader, duplicate detection & cleanup engine
+│   ├── backup-storage.js      # IndexedDB backup buffer persistence manager
+│   ├── matcher.js             # Title matching and normalization engine
+│   ├── pako.min.js            # Bundled GZIP decompression/compression library
+│   └── title-cleaner.js       # Scanlation title cleaner & sanitizer
 ├── icons/
-│   ├── icon.svg               # Vector icon
+│   ├── icon.svg               # Extension vector icon
 │   ├── icon-16.png            # 16x16 icon
 │   ├── icon-32.png            # 32x32 icon
 │   ├── icon-48.png            # 48x48 icon
 │   └── icon-128.png           # 128x128 icon
 └── test/
-    └── test-runner.html       # Automated browser test suite verifying all logic
+    ├── test-runner.html       # Automated browser test suite (78 tests)
+    └── test_category_ui_interaction.html # Category parsing & unified dropdown test suite
 ```
 
 ---
 
-## Installation in Zen Browser
+## Installation & Testing
 
-1. Open **Zen Browser**.
-2. In the URL bar, type:
+### Loading as a Temporary Extension in Zen Browser / Firefox
+
+1. Open **Zen Browser** (or **Firefox**).
+2. Navigate to:
    ```text
    about:debugging#/runtime/this-firefox
    ```
-   and press <kbd>Enter</kbd>.
-3. Click the **"Load Temporary Add-on..."** button.
-4. Navigate to this folder (`c:\Users\krohi\Downloads\Komikku Compare`) and select **`manifest.json`**.
-5. The **Komikku Compare** icon will now appear in your Zen Browser toolbar!
+3. Click **"Load Temporary Add-on..."**.
+4. Browse to the extension directory and select **`manifest.json`**.
+5. The **Komikku Compare** icon will appear in your browser toolbar!
+
+### Packaging for Mozilla Add-on Store (AMO)
+
+To build a clean zip archive compliant with Mozilla AMO requirements:
+```powershell
+powershell -ExecutionPolicy Bypass -File package-extension.ps1
+```
+This generates `komikku-compare-v1.1.0.zip` with normalized POSIX forward slashes.
 
 ---
 
 ## How to Use
 
-1. **Upload Backup**:
-   - Click the extension icon in Zen Browser.
-   - Drag and drop your `.tachibk` file into the upload box (or click "browse files").
-   - The extension will decompress and index your manga library.
-2. **Select Tabs**:
-   - In Zen Browser, hold <kbd>Ctrl</kbd> (or <kbd>Cmd</kbd> on macOS) and click tabs across your tab bar to multi-select the manga tabs you want to check.
-   - Alternatively, hold <kbd>Shift</kbd> to select a continuous range of tabs.
-3. **Compare**:
-   - Click the extension icon and click **"Process Selected Tabs"**.
-4. **Review Results**:
-   - Missing manga are grouped by website domain.
-   - Click **"Go to tab"** next to any item to switch straight to that tab.
-   - Click **"Copy"** to copy the missing manga list formatted in Markdown.
+1. **Load Your Backup**:
+   - Click the extension icon in your browser toolbar.
+   - Drop your `.tachibk` file into the upload area (or use the full-page upload).
+2. **Compare Selected Tabs**:
+   - Multi-select manga tabs in Zen Browser (<kbd>Ctrl</kbd> + click or <kbd>Shift</kbd> + click).
+   - In the popup, click **"Process Selected Tabs"** to view missing vs. library titles.
+3. **Explore Your Library & Filter**:
+   - Switch to the **Library & Duplicates** tab.
+   - Use the **Sources** dropdown and **Categories** dropdown side-by-side to filter your collection.
+   - Use the search bar to find manga by title, author, artist, source, or category.
+4. **Manage & Clean Duplicates**:
+   - Click the **Duplicates** toggle button to inspect duplicate groups.
+   - Use **Auto-Select ▾** to apply cleanup rules (by source priorities, oldest, or newest).
+   - Click **"Delete Selected"** to preview and confirm removal.
+   - Click **"Download Cleaned .tachibk"** to save your updated backup file and restore it in Komikku.
