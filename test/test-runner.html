@@ -905,6 +905,81 @@
 
       renderGroup("13. Category Filtering & Multi-Category Integrity Tests", categoryFilterTests);
 
+      // 14. Direct Manga Navigation & URL Resolution Tests
+      const navTests = [
+        {
+          name: 'BackupParser.getMangaUrl returns absolute URLs directly without modification',
+          fn: () => {
+            const url = BackupParser.getMangaUrl({ url: 'https://weebcentral.com/series/01J76XY78VPP46W866RBS0336T' });
+            return url === 'https://weebcentral.com/series/01J76XY78VPP46W866RBS0336T';
+          }
+        },
+        {
+          name: 'BackupParser.getMangaUrl maps Weeb Central relative path to https://weebcentral.com',
+          fn: () => {
+            const url = BackupParser.getMangaUrl({ url: '/series/test-id', sourceName: 'Weeb Central' });
+            return url === 'https://weebcentral.com/series/test-id';
+          }
+        },
+        {
+          name: 'BackupParser.getMangaUrl maps MangaDex relative path to https://mangadex.org',
+          fn: () => {
+            const url = BackupParser.getMangaUrl({ url: '/title/test-uuid', sourceName: 'MangaDex' });
+            return url === 'https://mangadex.org/title/test-uuid';
+          }
+        },
+        {
+          name: 'BackupParser.getMangaUrl prepends /title for Comix relative URLs',
+          fn: () => {
+            const url = BackupParser.getMangaUrl({ url: '/20kz5-slug', sourceName: 'Comix' });
+            return url === 'https://comix.to/title/20kz5-slug';
+          }
+        },
+        {
+          name: 'BackupParser.getMangaUrl preserves existing /title prefix for Comix URLs',
+          fn: () => {
+            const url = BackupParser.getMangaUrl({ url: '/title/20kz5-slug', sourceName: 'Comix' });
+            return url === 'https://comix.to/title/20kz5-slug';
+          }
+        },
+        {
+          name: 'BackupParser.getMangaUrl maps Asura Scans relative path to https://asuracomic.net',
+          fn: () => {
+            const url = BackupParser.getMangaUrl({ url: '/series/asura-slug', sourceName: 'Asura Scans' });
+            return url === 'https://asuracomic.net/series/asura-slug';
+          }
+        },
+        {
+          name: 'BackupParser.getMangaUrl falls back to Google search when source is unknown',
+          fn: () => {
+            const url = BackupParser.getMangaUrl({ title: 'Berserk', url: '/unknown-slug', sourceName: 'RandomUnknown' });
+            return url.includes('google.com/search') && url.includes('Berserk');
+          }
+        },
+        {
+          name: 'Multi-selection opening deduplicates URLs across entries sharing identical links',
+          fn: () => {
+            const entries = [
+              { title: 'Chainsaw Man (Copy 1)', url: '/title/csm', sourceName: 'MangaDex' },
+              { title: 'Chainsaw Man (Copy 2)', url: '/title/csm', sourceName: 'MangaDex' },
+              { title: 'Frieren', url: '/title/frieren', sourceName: 'MangaDex' }
+            ];
+            const uniqueUrls = new Set();
+            const toOpen = [];
+            for (const e of entries) {
+              const u = BackupParser.getMangaUrl(e);
+              if (u && !uniqueUrls.has(u)) {
+                uniqueUrls.add(u);
+                toOpen.push({ title: e.title, url: u });
+              }
+            }
+            return toOpen.length === 2 && toOpen[0].url === 'https://mangadex.org/title/csm' && toOpen[1].url === 'https://mangadex.org/title/frieren';
+          }
+        }
+      ];
+
+      renderGroup("14. Direct Manga Navigation & URL Resolution Tests", navTests);
+
       // Final Summary
       const summaryBox = document.createElement('div');
       const allPassed = passedTests === totalTests;

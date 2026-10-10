@@ -39,6 +39,7 @@
     categoriesByOrder: new Map(),
     uncategorizedCount: 0,
     selectedDuplicateEntryIds: new Set(),
+    selectedLibraryEntryIds: new Set(),
     sourcePreferences: [],
     activeAutoRule: 'sourcePreference',
     lastCleanedBlob: null,
@@ -122,6 +123,15 @@
     countAllBtn: document.getElementById('countAllBtn'),
     countDupsBtn: document.getElementById('countDupsBtn'),
     libraryList: document.getElementById('libraryList'),
+
+    // Library Multi-Selection Toolbar Elements
+    libSelectionBar: document.getElementById('libSelectionBar'),
+    libSelectAllCheckbox: document.getElementById('libSelectAllCheckbox'),
+    libSelectCount: document.getElementById('libSelectCount'),
+    libClearSelectionBtn: document.getElementById('libClearSelectionBtn'),
+    libSelectAllBtn: document.getElementById('libSelectAllBtn'),
+    libOpenSelectedBtn: document.getElementById('libOpenSelectedBtn'),
+    libOpenSelectedText: document.getElementById('libOpenSelectedText'),
 
     // Duplicate Management & Cleanup Elements
     dupActionsBar: document.getElementById('dupActionsBar'),
@@ -480,6 +490,7 @@
       elements.libCategoryFilter.addEventListener('change', (e) => {
         state.libCategoryFilter = e.target.value;
         renderLibraryView();
+        updateLibrarySelectionUI();
       });
     }
 
@@ -488,6 +499,7 @@
       elements.libSourceFilter.addEventListener('change', (e) => {
         state.libSourceFilter = e.target.value;
         renderLibraryView();
+        updateLibrarySelectionUI();
       });
     }
 
@@ -496,6 +508,44 @@
       elements.libSearchInput.addEventListener('input', (e) => {
         state.libSearchQuery = e.target.value.trim().toLowerCase();
         renderLibraryView();
+        updateLibrarySelectionUI();
+      });
+    }
+
+    // Library Multi-Selection Toolbar listeners
+    if (elements.libSelectAllCheckbox) {
+      elements.libSelectAllCheckbox.addEventListener('change', (e) => {
+        const checked = e.target.checked;
+        const filteredEntries = getFilteredLibraryEntries();
+        if (checked) {
+          for (const entry of filteredEntries) {
+            state.selectedLibraryEntryIds.add(entry.id);
+          }
+        } else {
+          for (const entry of filteredEntries) {
+            state.selectedLibraryEntryIds.delete(entry.id);
+          }
+        }
+        updateLibrarySelectionUI();
+        renderLibraryView();
+      });
+    }
+
+    if (elements.libSelectAllBtn) {
+      elements.libSelectAllBtn.addEventListener('click', () => {
+        selectAllFilteredLibraryEntries();
+      });
+    }
+
+    if (elements.libClearSelectionBtn) {
+      elements.libClearSelectionBtn.addEventListener('click', () => {
+        clearLibrarySelection();
+      });
+    }
+
+    if (elements.libOpenSelectedBtn) {
+      elements.libOpenSelectedBtn.addEventListener('click', () => {
+        openSelectedMangaPages();
       });
     }
   }
@@ -632,6 +682,7 @@
     state.categoriesByOrder = new Map();
     state.uncategorizedCount = 0;
     state.selectedDuplicateEntryIds.clear();
+    state.selectedLibraryEntryIds.clear();
     state.lastCleanedBlob = null;
     state.pendingDeletionEntries = [];
 
@@ -659,6 +710,7 @@
     populateSourceFilterDropdown();
     populateCategoryFilterControls();
     updateDuplicateSelectionUI();
+    updateLibrarySelectionUI();
     renderLibraryView();
 
     updateProcessButtonState();
@@ -1827,6 +1879,8 @@
         elements.btnFilterDups.classList.remove('active');
       }
     }
+    updateLibrarySelectionUI();
+    updateDuplicateSelectionUI();
   }
 
   /**
@@ -1842,6 +1896,227 @@
     if (s.includes('weeb') || s.includes('central')) return 'source-weebcentral';
     if (s.includes('flame')) return 'source-flame';
     return '';
+  }
+
+  /**
+   * Returns library entries filtered by current search query, source, and category.
+   * @returns {Array} Filtered library entries
+   */
+  function getFilteredLibraryEntries() {
+    if (!state.libraryEntries || state.libraryEntries.length === 0) return [];
+    const query = state.libSearchQuery || '';
+    const sourceFilter = state.libSourceFilter || 'all';
+    const categoryFilter = state.libCategoryFilter || 'all';
+
+    return state.libraryEntries.filter(entry => {
+      // 1. Source filter
+      if (sourceFilter !== 'all' && entry.sourceName !== sourceFilter) {
+        return false;
+      }
+
+      // 2. Category filter
+      if (categoryFilter === '__uncategorized__') {
+        if (!entry.isUncategorized && Array.isArray(entry.categoryNames) && entry.categoryNames.length > 0) {
+          return false;
+        }
+      } else if (categoryFilter !== 'all') {
+        if (!Array.isArray(entry.categoryNames) || !entry.categoryNames.includes(categoryFilter)) {
+          return false;
+        }
+      }
+
+      // 3. Search query (matches title, artist, author, source, and category names)
+      if (query) {
+        const titleMatch = entry.title && entry.title.toLowerCase().includes(query);
+        const artistMatch = entry.artist && entry.artist.toLowerCase().includes(query);
+        const authorMatch = entry.author && entry.author.toLowerCase().includes(query);
+        const sourceMatch = entry.sourceName && entry.sourceName.toLowerCase().includes(query);
+        const catMatch = Array.isArray(entry.categoryNames) && entry.categoryNames.some(cn => cn.toLowerCase().includes(query));
+        if (!titleMatch && !artistMatch && !authorMatch && !sourceMatch && !catMatch) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+
+  /**
+   * Updates multi-selection bar state (counts, tri-state checkbox, Open Selected button).
+   */
+  function updateLibrarySelectionUI() {
+    const isAllEntriesView = state.activeView === 'library' && state.libFilterMode !== 'duplicates';
+    const hasEntries = state.libraryEntries && state.libraryEntries.length > 0;
+
+    if (elements.libSelectionBar) {
+      if (isAllEntriesView && hasEntries) {
+        elements.libSelectionBar.classList.remove('hidden');
+      } else {
+        elements.libSelectionBar.classList.add('hidden');
+      }
+    }
+
+    const filtered = getFilteredLibraryEntries();
+    const selectedCount = state.selectedLibraryEntryIds.size;
+    let visibleSelectedCount = 0;
+    for (const e of filtered) {
+      if (state.selectedLibraryEntryIds.has(e.id)) {
+        visibleSelectedCount++;
+      }
+    }
+
+    if (elements.libSelectCount) {
+      elements.libSelectCount.textContent = `${selectedCount} selected`;
+    }
+
+    if (elements.libSelectAllCheckbox) {
+      if (filtered.length === 0) {
+        elements.libSelectAllCheckbox.checked = false;
+        elements.libSelectAllCheckbox.indeterminate = false;
+        elements.libSelectAllCheckbox.disabled = true;
+      } else {
+        elements.libSelectAllCheckbox.disabled = false;
+        if (visibleSelectedCount === filtered.length) {
+          elements.libSelectAllCheckbox.checked = true;
+          elements.libSelectAllCheckbox.indeterminate = false;
+        } else if (visibleSelectedCount > 0) {
+          elements.libSelectAllCheckbox.checked = false;
+          elements.libSelectAllCheckbox.indeterminate = true;
+        } else {
+          elements.libSelectAllCheckbox.checked = false;
+          elements.libSelectAllCheckbox.indeterminate = false;
+        }
+      }
+    }
+
+    if (elements.libClearSelectionBtn) {
+      if (selectedCount > 0) {
+        elements.libClearSelectionBtn.classList.remove('hidden');
+      } else {
+        elements.libClearSelectionBtn.classList.add('hidden');
+      }
+    }
+
+    if (elements.libOpenSelectedBtn) {
+      elements.libOpenSelectedBtn.disabled = selectedCount === 0;
+    }
+    if (elements.libOpenSelectedText) {
+      elements.libOpenSelectedText.textContent = `Open Selected (${selectedCount})`;
+    }
+  }
+
+  /**
+   * Toggles selection of a specific library entry.
+   * @param {string} entryId
+   */
+  function toggleLibraryEntrySelection(entryId) {
+    if (!entryId) return;
+    if (state.selectedLibraryEntryIds.has(entryId)) {
+      state.selectedLibraryEntryIds.delete(entryId);
+    } else {
+      state.selectedLibraryEntryIds.add(entryId);
+    }
+
+    // Direct DOM sync for immediate response
+    const card = document.querySelector(`.lib-entry-card[data-entry-id="${entryId}"]`);
+    if (card) {
+      const isSelected = state.selectedLibraryEntryIds.has(entryId);
+      card.classList.toggle('selected', isSelected);
+      const cb = card.querySelector('.lib-card-checkbox');
+      if (cb) cb.checked = isSelected;
+    }
+
+    updateLibrarySelectionUI();
+  }
+
+  /**
+   * Selects all currently filtered library entries.
+   */
+  function selectAllFilteredLibraryEntries() {
+    const filtered = getFilteredLibraryEntries();
+    for (const entry of filtered) {
+      state.selectedLibraryEntryIds.add(entry.id);
+    }
+    updateLibrarySelectionUI();
+    renderLibraryView();
+  }
+
+  /**
+   * Clears entire library selection.
+   */
+  function clearLibrarySelection() {
+    state.selectedLibraryEntryIds.clear();
+    updateLibrarySelectionUI();
+    renderLibraryView();
+  }
+
+  /**
+   * Opens the destination details/reader page for a single manga entry.
+   * @param {{ url?: string, sourceName?: string, sourceId?: string, title?: string }} entry
+   */
+  function openMangaPage(entry) {
+    if (!entry) return;
+    const url = (typeof BackupParser !== 'undefined' && BackupParser.getMangaUrl)
+      ? BackupParser.getMangaUrl(entry)
+      : (entry.url || 'https://www.google.com');
+
+    if (api && api.tabs && api.tabs.create) {
+      api.tabs.create({ url, active: true });
+    } else {
+      window.open(url, '_blank');
+    }
+  }
+
+  /**
+   * Opens all selected manga pages in separate background tabs.
+   * Deduplicates URLs and confirms if opening a large batch (> 25 tabs).
+   */
+  async function openSelectedMangaPages() {
+    if (state.selectedLibraryEntryIds.size === 0) return;
+
+    const selectedEntries = (state.libraryEntries || []).filter(e =>
+      state.selectedLibraryEntryIds.has(e.id)
+    );
+
+    if (selectedEntries.length === 0) return;
+
+    // Deduplicate target URLs to prevent duplicate tabs
+    const uniqueUrls = new Set();
+    const toOpen = [];
+
+    for (const entry of selectedEntries) {
+      const url = (typeof BackupParser !== 'undefined' && BackupParser.getMangaUrl)
+        ? BackupParser.getMangaUrl(entry)
+        : (entry.url || '');
+
+      if (url && !uniqueUrls.has(url)) {
+        uniqueUrls.add(url);
+        toOpen.push({ title: entry.title, url });
+      }
+    }
+
+    if (toOpen.length === 0) {
+      alert('Could not resolve destination web pages for the selected manga.');
+      return;
+    }
+
+    if (toOpen.length > 25) {
+      const proceed = confirm(
+        `You have selected ${toOpen.length} manga titles to open in separate tabs.\n\nOpening this many tabs simultaneously may cause high browser memory usage. Do you wish to continue?`
+      );
+      if (!proceed) return;
+    }
+
+    for (const item of toOpen) {
+      try {
+        if (api && api.tabs && api.tabs.create) {
+          api.tabs.create({ url: item.url, active: false });
+        } else {
+          window.open(item.url, '_blank');
+        }
+      } catch (err) {
+        console.warn(`Could not open tab for ${item.title}:`, err);
+      }
+    }
   }
 
   /**
@@ -1874,6 +2149,7 @@
       p.textContent = 'No library entries to display.';
       emptyBox.appendChild(p);
       elements.libraryList.appendChild(emptyBox);
+      updateLibrarySelectionUI();
       return;
     }
 
@@ -1883,49 +2159,19 @@
     if (state.libFilterMode === 'duplicates') {
       renderDuplicateGroupsView(query, sourceFilter);
     } else {
-      renderAllEntriesView(query, sourceFilter);
+      renderAllEntriesView();
     }
+
+    updateLibrarySelectionUI();
   }
 
   /**
    * Renders the 'All Entries' view.
    */
-  function renderAllEntriesView(query, sourceFilter) {
-    const categoryFilter = state.libCategoryFilter || 'all';
-
+  function renderAllEntriesView() {
     // Build quick lookup for duplicates
     const dupKeySet = new Set((state.duplicates && state.duplicates.groups) ? state.duplicates.groups.map(g => g.key) : []);
-
-    const filtered = state.libraryEntries.filter(entry => {
-      // 1. Source filter
-      if (sourceFilter !== 'all' && entry.sourceName !== sourceFilter) {
-        return false;
-      }
-
-      // 2. Category filter
-      if (categoryFilter === '__uncategorized__') {
-        if (!entry.isUncategorized && Array.isArray(entry.categoryNames) && entry.categoryNames.length > 0) {
-          return false;
-        }
-      } else if (categoryFilter !== 'all') {
-        if (!Array.isArray(entry.categoryNames) || !entry.categoryNames.includes(categoryFilter)) {
-          return false;
-        }
-      }
-
-      // 3. Search query (matches title, artist, author, source, and category names)
-      if (query) {
-        const titleMatch = entry.title && entry.title.toLowerCase().includes(query);
-        const artistMatch = entry.artist && entry.artist.toLowerCase().includes(query);
-        const authorMatch = entry.author && entry.author.toLowerCase().includes(query);
-        const sourceMatch = entry.sourceName && entry.sourceName.toLowerCase().includes(query);
-        const catMatch = Array.isArray(entry.categoryNames) && entry.categoryNames.some(cn => cn.toLowerCase().includes(query));
-        if (!titleMatch && !artistMatch && !authorMatch && !sourceMatch && !catMatch) {
-          return false;
-        }
-      }
-      return true;
-    });
+    const filtered = getFilteredLibraryEntries();
 
     if (filtered.length === 0) {
       const emptyBox = document.createElement('div');
@@ -1944,16 +2190,55 @@
     const toRender = filtered.slice(0, libraryRenderLimit);
 
     for (const entry of toRender) {
+      const isSelected = state.selectedLibraryEntryIds.has(entry.id);
+
       const card = document.createElement('div');
-      card.className = 'lib-entry-card';
+      card.className = `lib-entry-card ${isSelected ? 'selected' : ''}`.trim();
+      card.setAttribute('data-entry-id', entry.id);
+
+      // Multi-selection checkbox
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'manga-checkbox lib-card-checkbox';
+      cb.checked = isSelected;
+      cb.title = `Select "${entry.title}"`;
+      cb.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+      cb.addEventListener('change', (e) => {
+        e.stopPropagation();
+        toggleLibraryEntrySelection(entry.id);
+      });
+      card.appendChild(cb);
+
+      // Card-level click navigation to manga page (unless clicking controls)
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('input, button, select, a')) return;
+        openMangaPage(entry);
+      });
 
       const main = document.createElement('div');
       main.className = 'lib-entry-main';
 
+      // Clickable title with visual link icon
       const titleEl = document.createElement('span');
-      titleEl.className = 'lib-entry-title';
-      titleEl.textContent = entry.title;
-      titleEl.title = entry.title;
+      titleEl.className = 'lib-entry-title clickable-title';
+      titleEl.title = `Click to open "${entry.title}" in a new tab`;
+
+      const titleText = document.createElement('span');
+      titleText.textContent = entry.title;
+      titleEl.appendChild(titleText);
+
+      const openIcon = document.createElement('span');
+      openIcon.className = 'title-open-icon';
+      openIcon.textContent = '↗';
+      openIcon.setAttribute('aria-hidden', 'true');
+      titleEl.appendChild(openIcon);
+
+      titleEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openMangaPage(entry);
+      });
       main.appendChild(titleEl);
 
       const sub = document.createElement('div');
@@ -2750,19 +3035,42 @@
         checkbox.title = isKeep
           ? 'Currently designated to KEEP. Checking will select for deletion and designate another copy to keep.'
           : 'Toggle selection for deletion';
+        checkbox.addEventListener('click', (e) => {
+          e.stopPropagation();
+        });
         checkbox.addEventListener('change', () => {
           toggleDuplicateEntrySelection(group.key, entry.id);
         });
         left.appendChild(checkbox);
+
+        // Click row to open manga page (unless clicking controls)
+        row.addEventListener('click', (e) => {
+          if (e.target.closest('input, button, select, a')) return;
+          openMangaPage(entry);
+        });
 
         // Entry Information
         const info = document.createElement('div');
         info.className = 'dup-entry-info';
 
         const rowTitle = document.createElement('span');
-        rowTitle.className = 'dup-entry-title';
-        rowTitle.textContent = entry.title;
-        rowTitle.title = entry.title;
+        rowTitle.className = 'dup-entry-title clickable-title';
+        rowTitle.title = `Click to open "${entry.title}" (${entry.sourceName || 'source'}) in a new tab`;
+
+        const rowTitleText = document.createElement('span');
+        rowTitleText.textContent = entry.title;
+        rowTitle.appendChild(rowTitleText);
+
+        const openIcon = document.createElement('span');
+        openIcon.className = 'title-open-icon';
+        openIcon.textContent = '↗';
+        openIcon.setAttribute('aria-hidden', 'true');
+        rowTitle.appendChild(openIcon);
+
+        rowTitle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openMangaPage(entry);
+        });
         info.appendChild(rowTitle);
 
         // Metadata row

@@ -165,7 +165,78 @@
         assert(filterEntries('all', 'Manhwa').length === 1, "Manhwa returns 1 entry");
         assert(filterEntries('all', '__uncategorized__').length === 1, "Uncategorized returns Omniscient Reader");
 
-        resultsEl.innerHTML = '<div id="status">SUCCESS: All Category UI tests passed!</div><pre>' + logs.join('\n') + '</pre>';
+        // 5. Test Direct Manga Navigation URL Resolution (BackupParser.getMangaUrl)
+        assert(typeof BackupParser.getMangaUrl === 'function', "BackupParser.getMangaUrl function exists");
+
+        // Absolute URL
+        const absUrl = BackupParser.getMangaUrl({ url: 'https://example.com/manga/123', title: 'Example Manga' });
+        assert(absUrl === 'https://example.com/manga/123', "Absolute URLs are preserved directly");
+
+        // Weeb Central
+        const wcUrl = BackupParser.getMangaUrl({
+          url: '/series/01J76XY78VPP46W866RBS0336T',
+          sourceName: 'Weeb Central',
+          sourceId: '2131019126180322627'
+        });
+        assert(wcUrl === 'https://weebcentral.com/series/01J76XY78VPP46W866RBS0336T', "Weeb Central relative path resolves to full baseUrl");
+
+        // MangaDex
+        const mdUrl = BackupParser.getMangaUrl({
+          url: '/title/a9667631-b7ac-40e3-95f8-2b2db890db7e',
+          sourceName: 'MangaDex',
+          sourceId: '2499283573021220255'
+        });
+        assert(mdUrl === 'https://mangadex.org/title/a9667631-b7ac-40e3-95f8-2b2db890db7e', "MangaDex URL resolves correctly");
+
+        // Comix (/title prefix prepended)
+        const comixUrl = BackupParser.getMangaUrl({
+          url: '/20kz5-solo-leveling',
+          sourceName: 'Comix',
+          sourceId: '7537715367149829912'
+        });
+        assert(comixUrl === 'https://comix.to/title/20kz5-solo-leveling', "Comix URL correctly adds /title prefix");
+
+        // Comix with existing /title
+        const comixWithTitle = BackupParser.getMangaUrl({
+          url: '/title/20kz5-solo-leveling',
+          sourceName: 'Comix'
+        });
+        assert(comixWithTitle === 'https://comix.to/title/20kz5-solo-leveling', "Comix URL does not duplicate /title prefix");
+
+        // Asura Scans
+        const asuraUrl = BackupParser.getMangaUrl({
+          url: '/series/reincarnator-123',
+          sourceName: 'Asura Scans'
+        });
+        assert(asuraUrl === 'https://asuracomic.net/series/reincarnator-123', "Asura Scans URL resolves correctly");
+
+        // Unknown source fallback (Google search)
+        const fallbackUrl = BackupParser.getMangaUrl({
+          url: '/some-random-slug',
+          title: 'Unknown Series',
+          sourceName: 'Obscure Extension'
+        });
+        assert(fallbackUrl.includes('google.com/search') && fallbackUrl.includes('Unknown%20Series'), "Unknown source falls back to search");
+
+        // 6. Test Multi-Selection URL deduplication logic
+        const testDuplicateBatch = [
+          { title: 'Solo Leveling', url: '/series/01J76XY78VPP46W866RBS0336T', sourceName: 'Weeb Central' },
+          { title: 'Solo Leveling', url: '/series/01J76XY78VPP46W866RBS0336T', sourceName: 'Weeb Central' }, // Exact duplicate
+          { title: 'One Punch Man', url: '/title/12345', sourceName: 'MangaDex' }
+        ];
+
+        const uniqueBatchUrls = new Set();
+        const openedBatch = [];
+        for (const entry of testDuplicateBatch) {
+          const url = BackupParser.getMangaUrl(entry);
+          if (url && !uniqueBatchUrls.has(url)) {
+            uniqueBatchUrls.add(url);
+            openedBatch.push({ title: entry.title, url });
+          }
+        }
+        assert(openedBatch.length === 2, "Batch of 3 entries with 1 duplicate URL deduplicates to exactly 2 tabs");
+
+        resultsEl.innerHTML = '<div id="status">SUCCESS: All Category and Navigation tests passed!</div><pre>' + logs.join('\n') + '</pre>';
       } catch (err) {
         resultsEl.innerHTML = '<div id="status">FAILED: ' + err.message + '</div>';
         console.error(err);

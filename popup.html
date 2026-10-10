@@ -361,6 +361,30 @@
             </div>
           </div>
 
+          <!-- Library Multi-Selection Toolbar (Active in All Entries view) -->
+          <div class="lib-selection-bar" id="libSelectionBar">
+            <div class="lib-selection-summary">
+              <label class="lib-select-all-label" title="Toggle select or deselect all visible filtered titles">
+                <input type="checkbox" id="libSelectAllCheckbox" class="manga-checkbox" />
+                <span id="libSelectCount">0 selected</span>
+              </label>
+              <button type="button" class="btn-link-subtle hidden" id="libClearSelectionBtn">Deselect All</button>
+            </div>
+            <div class="lib-selection-actions">
+              <button type="button" class="btn-sm btn-secondary" id="libSelectAllBtn" title="Select all filtered titles">
+                Select All
+              </button>
+              <button type="button" class="btn-sm btn-primary" id="libOpenSelectedBtn" disabled title="Open selected manga in new tabs">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+                <span id="libOpenSelectedText">Open Selected (0)</span>
+              </button>
+            </div>
+          </div>
+
           <!-- Duplicate Action & Cleanup Bar (active in Duplicates view) -->
           <div class="dup-actions-bar hidden" id="dupActionsBar">
             <div class="dup-selection-summary">

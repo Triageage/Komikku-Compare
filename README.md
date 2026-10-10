@@ -26,13 +26,23 @@ A high-performance Manifest V3 browser extension built specifically for **Zen Br
 ### 2. Library Explorer with Sources & Categories
 - **Complete Library Overview**:
   - Displays total manga count, unique titles, source count, category count, and duplicate count.
+- **Direct Click Manga Navigation**:
+  - **Instant Title & Card Navigation**: Clicking any manga title or library card navigates directly to that manga's details/reader landing page in a new browser tab.
+  - **Accidental Navigation Guard**: Interactive controls (checkboxes, duplicate badges, cleanup buttons) stop event propagation (`stopPropagation`) to prevent unintended navigation.
+  - **Works Across Views**: Consistently available across Extensions view, Categories view, Search queries, and Duplicates view.
+- **Library Multi-Selection & Bulk Actions**:
+  - **Individual Selection**: Independent checkboxes on each manga entry card with highlighted selection states.
+  - **Tri-State Select All**: Header checkbox reflects partial (indeterminate), complete, or empty selection of currently filtered titles.
+  - **Dynamic Toolbar**: Displays selected title counter, **Select All**, and **Deselect All** actions that automatically adapt to current search and category/source filters.
+  - **"Open Selected" Bulk Navigation**: Opens all selected manga titles in separate background tabs in one click, preserving the current library view.
+  - **Deduplication & Safety Guards**: Automatically deduplicates target URLs so titles appearing in multiple categories or views open only once, and prompts for confirmation if opening more than 25 tabs simultaneously.
 - **Side-by-Side Unified Dropdowns**:
   - **Sources Dropdown**: Filter by source extension (e.g., MangaDex, Weeb Central, Asura, Flame) with title counts.
   - **Categories Dropdown**: Sits directly next to the Sources dropdown to filter by user-created categories (e.g., `Favorites`, `Manhwa`, `Completed`) with counts, plus an `Uncategorized` filter.
   - If a backup file has no categories, the dropdown clearly displays **"No categories yet"**.
   - **Simultaneous Filtering**: Search queries, source filters, and category filters operate concurrently.
 - **Rich Manga Cards**:
-  - Displays title, author/artist, URL path, distinct colored source pill (`.source-pill`), category badges (`📁 Category`), and duplicate alert badges.
+  - Displays title with external link icon (`↗`), author/artist, URL path, distinct colored source pill (`.source-pill`), category badges (`📁 Category`), and duplicate alert badges.
 
 ### 3. Duplicate Detection, Priority Ranking & Cleanup
 - **Cross-Source & Same-Source Duplicate Detection**:
@@ -81,7 +91,7 @@ Komikku Compare/
 │   ├── icon-48.png            # 48x48 icon
 │   └── icon-128.png           # 128x128 icon
 └── test/
-    ├── test-runner.html       # Automated browser test suite (78 tests)
+    ├── test-runner.html       # Automated browser test suite (86 tests)
     └── test_category_ui_interaction.html # Category parsing & unified dropdown test suite
 ```
 
