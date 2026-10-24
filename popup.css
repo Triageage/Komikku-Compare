@@ -1415,7 +1415,8 @@ body {
 }
 
 .lib-source-select,
-.lib-category-select {
+.lib-category-select,
+.lib-sort-select {
   flex: 1;
   min-width: 0;
   background-color: var(--bg-card);
@@ -1437,6 +1438,10 @@ body {
   border-color: rgba(192, 132, 252, 0.35);
 }
 
+.lib-sort-select {
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
 .lib-source-select:hover, .lib-source-select:focus {
   border-color: var(--border-focus);
 }
@@ -1445,8 +1450,13 @@ body {
   border-color: #c084fc;
 }
 
+.lib-sort-select:hover, .lib-sort-select:focus {
+  border-color: #38bdf8;
+}
+
 .lib-source-select option,
-.lib-category-select option {
+.lib-category-select option,
+.lib-sort-select option {
   background-color: var(--bg-card);
   color: var(--text-primary);
 }

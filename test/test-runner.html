@@ -980,6 +980,108 @@
 
       renderGroup("14. Direct Manga Navigation & URL Resolution Tests", navTests);
 
+      // 15. Library Sorting Options & Behavior Tests
+      const sampleEntries = [
+        { title: "One Piece", dateAdded: 1610000000000 },
+        { title: "Attack on Titan", dateAdded: 1630000000000 },
+        { title: "Bleach", dateAdded: 1620000000000 },
+        { title: "Death Note", dateAdded: 1600000000000 }
+      ];
+
+      const edgeCaseEntries = [
+        { title: "Mob Psycho 100", dateAdded: 1600000000000 },
+        { title: "Mob Psycho 2", dateAdded: 1650000000000 },
+        { title: "Mob Psycho 10", dateAdded: 1620000000000 },
+        { title: "[Oshi no Ko]", dateAdded: 0 },
+        { title: "SPY×FAMILY", dateAdded: null }
+      ];
+
+      const sortingTests = [
+        {
+          name: 'BackupParser.sortLibraryEntries function exists',
+          fn: () => typeof BackupParser.sortLibraryEntries === 'function'
+        },
+        {
+          name: 'Alphabetical — A to Z: correctly sorts manga titles ascending',
+          fn: () => {
+            const sorted = BackupParser.sortLibraryEntries(sampleEntries, 'alpha-asc');
+            return sorted[0].title === "Attack on Titan" &&
+                   sorted[1].title === "Bleach" &&
+                   sorted[2].title === "Death Note" &&
+                   sorted[3].title === "One Piece";
+          }
+        },
+        {
+          name: 'Alphabetical — Z to A: correctly sorts manga titles descending',
+          fn: () => {
+            const sorted = BackupParser.sortLibraryEntries(sampleEntries, 'alpha-desc');
+            return sorted[0].title === "One Piece" &&
+                   sorted[1].title === "Death Note" &&
+                   sorted[2].title === "Bleach" &&
+                   sorted[3].title === "Attack on Titan";
+          }
+        },
+        {
+          name: 'Alphabetical sorting applies natural numeric comparison ("Mob Psycho 2" before "10" and "100")',
+          fn: () => {
+            const nums = [
+              { title: "Mob Psycho 100" },
+              { title: "Mob Psycho 2" },
+              { title: "Mob Psycho 10" }
+            ];
+            const sorted = BackupParser.sortLibraryEntries(nums, 'alpha-asc');
+            return sorted[0].title === "Mob Psycho 2" &&
+                   sorted[1].title === "Mob Psycho 10" &&
+                   sorted[2].title === "Mob Psycho 100";
+          }
+        },
+        {
+          name: 'Date Added — Newest First: sorts by dateAdded descending with most recent at the top',
+          fn: () => {
+            const sorted = BackupParser.sortLibraryEntries(sampleEntries, 'date-desc');
+            return sorted[0].title === "Attack on Titan" && // 1630000000000
+                   sorted[1].title === "Bleach" &&          // 1620000000000
+                   sorted[2].title === "One Piece" &&       // 1610000000000
+                   sorted[3].title === "Death Note";        // 1600000000000
+          }
+        },
+        {
+          name: 'Date Added — Oldest First: sorts by dateAdded ascending with earliest at the top',
+          fn: () => {
+            const sorted = BackupParser.sortLibraryEntries(sampleEntries, 'date-asc');
+            return sorted[0].title === "Death Note" &&       // 1600000000000
+                   sorted[1].title === "One Piece" &&        // 1610000000000
+                   sorted[2].title === "Bleach" &&           // 1620000000000
+                   sorted[3].title === "Attack on Titan";    // 1630000000000
+          }
+        },
+        {
+          name: 'Date sorting gracefully handles missing or 0 dateAdded values by placing them at the bottom',
+          fn: () => {
+            const sorted = BackupParser.sortLibraryEntries(edgeCaseEntries, 'date-desc');
+            // Valid dates: Mob Psycho 2 (1650), 10 (1620), 100 (1600)
+            // Missing dates: [Oshi no Ko] (0), SPY×FAMILY (null)
+            const firstThreeValid = sorted[0].title === "Mob Psycho 2" &&
+                                   sorted[1].title === "Mob Psycho 10" &&
+                                   sorted[2].title === "Mob Psycho 100";
+            const lastTwoMissing = (sorted[3].title === "[Oshi no Ko]" || sorted[3].title === "SPY×FAMILY") &&
+                                   (sorted[4].title === "[Oshi no Ko]" || sorted[4].title === "SPY×FAMILY");
+            return firstThreeValid && lastTwoMissing;
+          }
+        },
+        {
+          name: 'sortLibraryEntries is pure and does not mutate the original array',
+          fn: () => {
+            const original = [{ title: "B" }, { title: "A" }];
+            const copy = [...original];
+            BackupParser.sortLibraryEntries(original, 'alpha-asc');
+            return original[0].title === copy[0].title && original[1].title === copy[1].title;
+          }
+        }
+      ];
+
+      renderGroup("15. Library Sorting Options & Behavior Tests", sortingTests);
+
       // Final Summary
       const summaryBox = document.createElement('div');
       const allPassed = passedTests === totalTests;

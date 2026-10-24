@@ -34,6 +34,7 @@
     libFilterMode: 'all',
     libSourceFilter: 'all',
     libCategoryFilter: 'all',
+    libSortOrder: 'alpha-asc',
     libSearchQuery: '',
     categories: [],
     categoriesByOrder: new Map(),
@@ -118,6 +119,7 @@
     libSearchInput: document.getElementById('libSearchInput'),
     libSourceFilter: document.getElementById('libSourceFilter'),
     libCategoryFilter: document.getElementById('libCategoryFilter'),
+    libSortSelect: document.getElementById('libSortSelect'),
     btnFilterAll: document.getElementById('btnFilterAll'),
     btnFilterDups: document.getElementById('btnFilterDups'),
     countAllBtn: document.getElementById('countAllBtn'),
@@ -180,12 +182,14 @@
   // Storage Keys
   const STORAGE_KEY_BACKUP = 'komikku_compare_backup_data_v2';
   const STORAGE_KEY_SOURCE_PRIORITIES = 'komikku_source_priorities_v1';
+  const STORAGE_KEY_SORT_ORDER = 'komikku_lib_sort_order_v1';
 
   /**
    * Initializes extension popup.
    */
   async function init() {
     setupEventListeners();
+    await loadSortPreference();
     await loadSourcePreferences();
     await restoreSavedLibrary();
     await updateHighlightedTabs();
@@ -205,11 +209,18 @@
       }
     }
 
-    // Listen for storage changes from upload tab
+    // Listen for storage changes from upload tab or other views
     if (api.storage && api.storage.onChanged) {
       api.storage.onChanged.addListener((changes, area) => {
         if (area === 'local' && changes[STORAGE_KEY_BACKUP]) {
           restoreSavedLibrary();
+        }
+        if (area === 'local' && changes[STORAGE_KEY_SORT_ORDER]) {
+          state.libSortOrder = changes[STORAGE_KEY_SORT_ORDER].newValue || 'alpha-asc';
+          if (elements.libSortSelect) {
+            elements.libSortSelect.value = state.libSortOrder;
+          }
+          renderLibraryView();
         }
       });
     }
@@ -512,6 +523,15 @@
       });
     }
 
+    // Library sort order dropdown
+    if (elements.libSortSelect) {
+      elements.libSortSelect.addEventListener('change', (e) => {
+        saveSortPreference(e.target.value);
+        renderLibraryView();
+        updateLibrarySelectionUI();
+      });
+    }
+
     // Library Multi-Selection Toolbar listeners
     if (elements.libSelectAllCheckbox) {
       elements.libSelectAllCheckbox.addEventListener('change', (e) => {
@@ -706,6 +726,7 @@
     if (elements.libMetricCategories) elements.libMetricCategories.textContent = '0';
 
     if (elements.libSearchInput) elements.libSearchInput.value = '';
+    if (elements.libSortSelect) elements.libSortSelect.value = state.libSortOrder || 'alpha-asc';
     updateLibraryUIStats();
     populateSourceFilterDropdown();
     populateCategoryFilterControls();
@@ -1899,8 +1920,9 @@
   }
 
   /**
-   * Returns library entries filtered by current search query, source, and category.
-   * @returns {Array} Filtered library entries
+   * Returns library entries filtered by current search query, source, and category,
+   * sorted according to state.libSortOrder.
+   * @returns {Array} Filtered and sorted library entries
    */
   function getFilteredLibraryEntries() {
     if (!state.libraryEntries || state.libraryEntries.length === 0) return [];
@@ -1908,7 +1930,7 @@
     const sourceFilter = state.libSourceFilter || 'all';
     const categoryFilter = state.libCategoryFilter || 'all';
 
-    return state.libraryEntries.filter(entry => {
+    const filtered = state.libraryEntries.filter(entry => {
       // 1. Source filter
       if (sourceFilter !== 'all' && entry.sourceName !== sourceFilter) {
         return false;
@@ -1938,6 +1960,11 @@
       }
       return true;
     });
+
+    const sortOrder = state.libSortOrder || 'alpha-asc';
+    return (typeof BackupParser !== 'undefined' && BackupParser.sortLibraryEntries)
+      ? BackupParser.sortLibraryEntries(filtered, sortOrder)
+      : filtered;
   }
 
   /**
@@ -2323,6 +2350,40 @@
       });
       moreBtnContainer.appendChild(moreBtn);
       elements.libraryList.appendChild(moreBtnContainer);
+    }
+  }
+
+  /**
+   * Loads saved library sort preference from storage.
+   */
+  async function loadSortPreference() {
+    try {
+      if (api.storage && api.storage.local) {
+        const data = await api.storage.local.get(STORAGE_KEY_SORT_ORDER);
+        if (data && data[STORAGE_KEY_SORT_ORDER]) {
+          state.libSortOrder = data[STORAGE_KEY_SORT_ORDER];
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load sort preference from storage:', e);
+    }
+    if (elements.libSortSelect) {
+      elements.libSortSelect.value = state.libSortOrder || 'alpha-asc';
+    }
+  }
+
+  /**
+   * Persists library sort preference to storage.
+   * @param {'alpha-asc'|'alpha-desc'|'date-desc'|'date-asc'} sortOrder
+   */
+  async function saveSortPreference(sortOrder) {
+    state.libSortOrder = sortOrder;
+    try {
+      if (api.storage && api.storage.local) {
+        await api.storage.local.set({ [STORAGE_KEY_SORT_ORDER]: sortOrder });
+      }
+    } catch (e) {
+      console.warn('Could not save sort preference to storage:', e);
     }
   }
 
@@ -2975,8 +3036,45 @@
       return;
     }
 
-    const totalMatching = filtered.length;
-    const toRender = filtered.slice(0, libraryRenderLimit);
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+    const sortOrder = state.libSortOrder || 'alpha-asc';
+
+    const sortedGroups = filtered.slice().sort((gA, gB) => {
+      const tA = (gA.canonicalTitle || '').trim();
+      const tB = (gB.canonicalTitle || '').trim();
+
+      if (sortOrder === 'alpha-asc') {
+        const res = collator.compare(tA, tB);
+        return res !== 0 ? res : tA.localeCompare(tB);
+      }
+      if (sortOrder === 'alpha-desc') {
+        const res = collator.compare(tB, tA);
+        return res !== 0 ? res : tB.localeCompare(tA);
+      }
+
+      const getGroupDate = (g, findMax) => {
+        let target = findMax ? 0 : Infinity;
+        for (const e of g.entries) {
+          const d = (typeof e.dateAdded === 'number' && !isNaN(e.dateAdded)) ? e.dateAdded : 0;
+          if (findMax && d > target) target = d;
+          if (!findMax && d > 0 && d < target) target = d;
+        }
+        return (target === Infinity || target === 0) ? 0 : target;
+      };
+
+      const dA = getGroupDate(gA, sortOrder === 'date-desc');
+      const dB = getGroupDate(gB, sortOrder === 'date-desc');
+
+      if (dA > 0 && dB <= 0) return -1;
+      if (dB > 0 && dA <= 0) return 1;
+      if (dA > 0 && dB > 0 && dA !== dB) {
+        return sortOrder === 'date-desc' ? dB - dA : dA - dB;
+      }
+      return collator.compare(tA, tB);
+    });
+
+    const totalMatching = sortedGroups.length;
+    const toRender = sortedGroups.slice(0, libraryRenderLimit);
 
     for (const group of toRender) {
       const groupCard = document.createElement('div');

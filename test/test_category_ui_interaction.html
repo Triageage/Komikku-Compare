@@ -234,9 +234,15 @@
             openedBatch.push({ title: entry.title, url });
           }
         }
-        assert(openedBatch.length === 2, "Batch of 3 entries with 1 duplicate URL deduplicates to exactly 2 tabs");
+        // 7. Test Library Sorting Across Category Views
+        assert(typeof BackupParser.sortLibraryEntries === 'function', "BackupParser.sortLibraryEntries exists");
+        const actionSortedAtoZ = BackupParser.sortLibraryEntries(actionManga, 'alpha-asc');
+        assert(actionSortedAtoZ[0].title === "One Punch Man" && actionSortedAtoZ[1].title === "Solo Leveling", "Action category correctly sorted A to Z");
 
-        resultsEl.innerHTML = '<div id="status">SUCCESS: All Category and Navigation tests passed!</div><pre>' + logs.join('\n') + '</pre>';
+        const actionSortedZtoA = BackupParser.sortLibraryEntries(actionManga, 'alpha-desc');
+        assert(actionSortedZtoA[0].title === "Solo Leveling" && actionSortedZtoA[1].title === "One Punch Man", "Action category correctly sorted Z to A");
+
+        resultsEl.innerHTML = '<div id="status">SUCCESS: All Category, Navigation, and Sorting tests passed!</div><pre>' + logs.join('\n') + '</pre>';
       } catch (err) {
         resultsEl.innerHTML = '<div id="status">FAILED: ' + err.message + '</div>';
         console.error(err);

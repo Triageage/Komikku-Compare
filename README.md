@@ -36,11 +36,16 @@ A high-performance Manifest V3 browser extension built specifically for **Zen Br
   - **Dynamic Toolbar**: Displays selected title counter, **Select All**, and **Deselect All** actions that automatically adapt to current search and category/source filters.
   - **"Open Selected" Bulk Navigation**: Opens all selected manga titles in separate background tabs in one click, preserving the current library view.
   - **Deduplication & Safety Guards**: Automatically deduplicates target URLs so titles appearing in multiple categories or views open only once, and prompts for confirmation if opening more than 25 tabs simultaneously.
-- **Side-by-Side Unified Dropdowns**:
+- **Unified Multi-Dropdown Toolbar**:
   - **Sources Dropdown**: Filter by source extension (e.g., MangaDex, Weeb Central, Asura, Flame) with title counts.
   - **Categories Dropdown**: Sits directly next to the Sources dropdown to filter by user-created categories (e.g., `Favorites`, `Manhwa`, `Completed`) with counts, plus an `Uncategorized` filter.
-  - If a backup file has no categories, the dropdown clearly displays **"No categories yet"**.
-  - **Simultaneous Filtering**: Search queries, source filters, and category filters operate concurrently.
+  - **Sort By Dropdown**: Accessible right next to the filter dropdowns with instant real-time sorting:
+    - **Alphabetical — A to Z:** Sorts titles ascending with natural numeric ordering (e.g. "Mob Psycho 2" before "10").
+    - **Alphabetical — Z to A:** Sorts titles descending.
+    - **Date Added — Newest First:** Highlights recently added entries at the top.
+    - **Date Added — Oldest First:** Displays earliest added manga entries at the top.
+  - **Persistence**: Remembers sorting preference across sessions and library view switching via local extension storage.
+  - **Simultaneous Filtering & Sorting**: Search queries, source filters, category filters, and sorting operate concurrently.
 - **Rich Manga Cards**:
   - Displays title with external link icon (`↗`), author/artist, URL path, distinct colored source pill (`.source-pill`), category badges (`📁 Category`), and duplicate alert badges.
 
@@ -91,7 +96,7 @@ Komikku Compare/
 │   ├── icon-48.png            # 48x48 icon
 │   └── icon-128.png           # 128x128 icon
 └── test/
-    ├── test-runner.html       # Automated browser test suite (86 tests)
+    ├── test-runner.html       # Automated browser test suite (94 tests)
     └── test_category_ui_interaction.html # Category parsing & unified dropdown test suite
 ```
 
