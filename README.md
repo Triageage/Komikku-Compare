@@ -121,7 +121,7 @@ To build a clean zip archive compliant with Mozilla AMO requirements:
 ```powershell
 powershell -ExecutionPolicy Bypass -File package-extension.ps1
 ```
-This generates `komikku-compare-v1.1.0.zip` with normalized POSIX forward slashes.
+This automatically reads the version from `manifest.json` and generates `komikku-compare-v<version>.zip` (e.g., `komikku-compare-v1.1.1.zip`) with normalized POSIX forward slashes.
 
 ---
 

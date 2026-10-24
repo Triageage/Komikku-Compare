@@ -1,7 +1,26 @@
 # Packaging script for Mozilla Firefox Add-on Store (AMO)
 # Uses standard forward slashes ('/') in ZIP headers required by Mozilla AMO.
 
-$outputZip = "komikku-compare-v1.1.0.zip"
+$manifestPath = "manifest.json"
+if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "manifest.json"))) {
+    $manifestPath = Join-Path $PSScriptRoot "manifest.json"
+    Set-Location $PSScriptRoot
+}
+
+if (-not (Test-Path $manifestPath)) {
+    Write-Error "Could not find manifest.json to determine extension version."
+    exit 1
+}
+
+$manifest = Get-Content -Path $manifestPath -Raw | ConvertFrom-Json
+$version = $manifest.version
+
+if (-not $version) {
+    Write-Error "Could not find 'version' field in manifest.json."
+    exit 1
+}
+
+$outputZip = "komikku-compare-v$version.zip"
 
 if (Test-Path $outputZip) {
     Remove-Item $outputZip -Force
